@@ -600,10 +600,13 @@ select.workspace-picker {
 }
 
 .card-word {
+    min-width: 0;
+    max-width: 100%;
     flex: 1;
     display: grid;
     place-items: center;
     text-align: center;
+    overflow-wrap: anywhere;
     font-family: Fraunces, serif;
     font-size: clamp(37px, 6vw, 62px);
     letter-spacing: -2.4px;
