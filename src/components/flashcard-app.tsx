@@ -99,6 +99,7 @@ export default function FlashcardApp() {
     const [folderForm, setFolderForm] = useState({ name: "", description: "", color: "#dcebe1" });
     const [darkMode, setDarkMode] = useState(false);
     const [themeReady, setThemeReady] = useState(false);
+    const [now, setNow] = useState(() => Date.now());
     const [workspace, setWorkspace] = useState("");
     const [workspaceId, setWorkspaceId] = useState("");
     const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
@@ -117,6 +118,11 @@ export default function FlashcardApp() {
         const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
         setDarkMode(savedTheme ? savedTheme === "dark" : prefersDark);
         setThemeReady(true);
+    }, []);
+
+    useEffect(() => {
+        const timer = window.setInterval(() => setNow(Date.now()), 1000);
+        return () => window.clearInterval(timer);
     }, []);
 
     useEffect(() => {
@@ -262,7 +268,7 @@ export default function FlashcardApp() {
         return () => { cancelled = true; };
     }, []);
 
-    const queue = useMemo(() => sortReviewQueue(cards), [cards]);
+    const queue = useMemo(() => sortReviewQueue(cards, new Date(now)), [cards, now]);
     const currentCard = queue[0];
     const dueCount = queue.length;
     const learnedCount = cards.filter((card) => card.state === "mastered").length;
@@ -597,7 +603,7 @@ export default function FlashcardApp() {
     }
 
     function renderWords() {
-        return <><div className="view-toolbar"><div className="search-box"><Search size={15} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search vocabulary..." /></div><div className="filter-row">{(["all", "new", "learning", "review", "mastered"] as Filter[]).map((item) => <button className={`filter-chip ${filter === item ? "active" : ""}`} key={item} onClick={() => setFilter(item)}>{item === "all" ? "All" : item[0].toUpperCase() + item.slice(1)}</button>)}</div></div><div className="word-list">{visibleCards.length ? visibleCards.map((card) => <div className="word-row" key={card.id}><div className="word-main"><strong>{card.word}</strong><span>{card.meaning || "Meaning to be added"}</span></div><div className="word-folder">{folders.find((folder) => folder.id === card.folderId)?.name ?? "Unsorted"}</div><div><span className={`state-tag state-${card.state}`}>{card.state}</span></div><div className="word-due">{formatDueIn(card.dueAt)}</div><div className="row-actions"><button className="icon-button" onClick={() => openEditWord(card)} aria-label={`Edit ${card.word}`}><Pencil size={14} /></button><button className="icon-button danger-button" onClick={() => void removeWord(card)} aria-label={`Delete ${card.word}`}><Trash2 size={14} /></button></div></div>) : <div className="no-results">No words match that search.</div>}</div></>;
+        return <><div className="view-toolbar"><div className="search-box"><Search size={15} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search vocabulary..." /></div><div className="filter-row">{(["all", "new", "learning", "review", "mastered"] as Filter[]).map((item) => <button className={`filter-chip ${filter === item ? "active" : ""}`} key={item} onClick={() => setFilter(item)}>{item === "all" ? "All" : item[0].toUpperCase() + item.slice(1)}</button>)}</div></div><div className="word-list">{visibleCards.length ? visibleCards.map((card) => <div className="word-row" key={card.id}><div className="word-main"><strong>{card.word}</strong><span>{card.meaning || "Meaning to be added"}</span></div><div className="word-folder">{folders.find((folder) => folder.id === card.folderId)?.name ?? "Unsorted"}</div><div><span className={`state-tag state-${card.state}`}>{card.state}</span></div><div className="word-due">{formatDueIn(card.dueAt, new Date(now))}</div><div className="row-actions"><button className="icon-button" onClick={() => openEditWord(card)} aria-label={`Edit ${card.word}`}><Pencil size={14} /></button><button className="icon-button danger-button" onClick={() => void removeWord(card)} aria-label={`Delete ${card.word}`}><Trash2 size={14} /></button></div></div>) : <div className="no-results">No words match that search.</div>}</div></>;
     }
 
     function renderFolders() {
@@ -606,7 +612,7 @@ export default function FlashcardApp() {
             const selectedCards = getFolderCards(selectedFolder.id);
             return <section className="folder-detail"><button className="ghost-button" onClick={() => setSelectedFolderId(null)}><ArrowLeft size={14} /> All folders</button><div className="folder-detail-header"><div className="folder-color" style={{ background: selectedFolder.color }} /><div><div className="eyebrow">Folder</div><h2>{selectedFolder.name}</h2><p>{selectedFolder.description}</p></div></div><div className="folder-detail-list">{selectedCards.length ? selectedCards.map((card) => <div className="word-row" key={card.id}><div className="word-main"><strong>{card.word}</strong><span>{card.meaning || "Meaning to be added"}</span></div><span className={`state-tag state-${card.state}`}>{card.state}</span><div className="row-actions"><button className="icon-button" onClick={() => openEditWord(card)} aria-label={`Edit ${card.word}`}><Pencil size={14} /></button><button className="icon-button danger-button" onClick={() => void removeWord(card)} aria-label={`Delete ${card.word}`}><Trash2 size={14} /></button></div></div>) : <div className="no-results">No words in this folder yet.</div>}</div></section>;
         }
-        return <div className="folder-grid">{folders.map((folder) => { const folderCards = getFolderCards(folder.id); const due = folderCards.filter((card) => new Date(card.dueAt).getTime() <= Date.now()).length; return <div className="folder-card" key={folder.id}><div className="folder-card-top"><div className="folder-color" style={{ background: folder.color }} /><div className="row-actions"><button className="icon-button" onClick={() => openEditFolder(folder)} aria-label={`Edit ${folder.name}`}><Pencil size={14} /></button><button className="icon-button danger-button" onClick={() => void removeFolder(folder)} aria-label={`Delete ${folder.name}`}><Trash2 size={14} /></button></div></div><h3>{folder.name}</h3><p>{folder.description}</p><div className="folder-meta"><span>{folderCards.length} {folderCards.length === 1 ? "word" : "words"}</span><span>{due} due</span></div></div> })}<button className="folder-card" onClick={addFolder} style={{ borderStyle: "dashed", alignItems: "center", justifyContent: "center", color: "var(--sage)" }}><CirclePlus size={22} /><span style={{ marginTop: 10, fontSize: 12, fontWeight: 700 }}>New folder</span></button></div>;
+        return <div className="folder-grid">{folders.map((folder) => { const folderCards = getFolderCards(folder.id); const due = folderCards.filter((card) => new Date(card.dueAt).getTime() <= now).length; return <div className="folder-card" key={folder.id}><div className="folder-card-top"><div className="folder-color" style={{ background: folder.color }} /><div className="row-actions"><button className="icon-button" onClick={() => openEditFolder(folder)} aria-label={`Edit ${folder.name}`}><Pencil size={14} /></button><button className="icon-button danger-button" onClick={() => void removeFolder(folder)} aria-label={`Delete ${folder.name}`}><Trash2 size={14} /></button></div></div><h3>{folder.name}</h3><p>{folder.description}</p><div className="folder-meta"><span>{folderCards.length} {folderCards.length === 1 ? "word" : "words"}</span><span>{due} due</span></div></div> })}<button className="folder-card" onClick={addFolder} style={{ borderStyle: "dashed", alignItems: "center", justifyContent: "center", color: "var(--sage)" }}><CirclePlus size={22} /><span style={{ marginTop: 10, fontSize: 12, fontWeight: 700 }}>New folder</span></button></div>;
     }
 
     function renderAddFolder() {
