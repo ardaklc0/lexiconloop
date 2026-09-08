@@ -911,11 +911,17 @@ select.workspace-picker {
     display: block;
     font-family: Fraunces, serif;
     font-size: 17px;
+    overflow-wrap: anywhere;
 }
 
 .word-main span {
     color: var(--muted);
     font-size: 11px;
+    overflow-wrap: anywhere;
+}
+
+.word-main {
+    min-width: 0;
 }
 
 .row-actions {
