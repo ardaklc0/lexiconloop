@@ -38,6 +38,8 @@
 html {
     background: var(--paper);
     transition: background 0.2s ease;
+    touch-action: pan-y;
+    overscroll-behavior-x: none;
 }
 
 body {
@@ -46,6 +48,7 @@ body {
     background: var(--paper);
     font-family: "DM Sans", sans-serif;
     -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
 }
 
 :root[data-theme="dark"] .sidebar,

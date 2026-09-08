@@ -117,6 +117,18 @@ export default function FlashcardApp() {
     }, []);
 
     useEffect(() => {
+        const preventGestureZoom = (event: Event) => event.preventDefault();
+        document.addEventListener("gesturestart", preventGestureZoom, { passive: false });
+        document.addEventListener("gesturechange", preventGestureZoom, { passive: false });
+        document.addEventListener("gestureend", preventGestureZoom, { passive: false });
+        return () => {
+            document.removeEventListener("gesturestart", preventGestureZoom);
+            document.removeEventListener("gesturechange", preventGestureZoom);
+            document.removeEventListener("gestureend", preventGestureZoom);
+        };
+    }, []);
+
+    useEffect(() => {
         if (!themeReady) return;
         document.documentElement.dataset.theme = darkMode ? "dark" : "light";
         localStorage.setItem("lexicon-theme", darkMode ? "dark" : "light");
