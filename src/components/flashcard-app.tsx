@@ -27,6 +27,7 @@ import {
     X,
 } from "lucide-react";
 import { calculateNextReview, formatDueIn, sortReviewQueue } from "@/lib/spaced-repetition";
+import { applyDeviceTheme, watchDeviceTheme } from "@/lib/device-theme";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { deleteFolder, deleteWord, deleteWorkspace, insertFolder, insertWord, insertWorkspace, loadUserData, loadWorkspaces, saveReview, updateFolder, updateWord } from "@/lib/supabase/data";
 import type { CardState, Folder, ReviewLog, ReviewRating, WordRecord, Workspace } from "@/lib/types";
@@ -98,7 +99,6 @@ export default function FlashcardApp() {
     const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
     const [folderForm, setFolderForm] = useState({ name: "", description: "", color: "#dcebe1" });
     const [darkMode, setDarkMode] = useState(false);
-    const [themeReady, setThemeReady] = useState(false);
     const [now, setNow] = useState(() => Date.now());
     const [workspace, setWorkspace] = useState("");
     const [workspaceId, setWorkspaceId] = useState("");
@@ -114,11 +114,15 @@ export default function FlashcardApp() {
     const userIdRef = useRef<string | null>(null);
 
     useEffect(() => {
-        const savedTheme = localStorage.getItem("lexicon-theme");
-        const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-        setDarkMode(savedTheme ? savedTheme === "dark" : prefersDark);
-        setThemeReady(true);
+        return watchDeviceTheme((theme) => {
+            setDarkMode(theme === "dark");
+            applyDeviceTheme(theme);
+        });
     }, []);
+
+    useEffect(() => {
+        applyDeviceTheme(darkMode ? "dark" : "light");
+    }, [darkMode]);
 
     useEffect(() => {
         const timer = window.setInterval(() => setNow(Date.now()), 1000);
@@ -147,12 +151,6 @@ export default function FlashcardApp() {
             document.removeEventListener("touchend", preventDoubleTapZoom);
         };
     }, []);
-
-    useEffect(() => {
-        if (!themeReady) return;
-        document.documentElement.dataset.theme = darkMode ? "dark" : "light";
-        localStorage.setItem("lexicon-theme", darkMode ? "dark" : "light");
-    }, [darkMode, themeReady]);
 
     useEffect(() => {
         const picker = document.querySelector<HTMLElement>(".workspace-picker");

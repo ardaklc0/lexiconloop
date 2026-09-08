@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { ArrowRight, BookOpenCheck, LockKeyhole, Mail } from "lucide-react";
+import { applyDeviceTheme, watchDeviceTheme } from "@/lib/device-theme";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 export default function AuthPage() {
@@ -9,6 +10,8 @@ export default function AuthPage() {
     const [password, setPassword] = useState("");
     const [message, setMessage] = useState("");
     const [loading, setLoading] = useState(false);
+
+    useEffect(() => watchDeviceTheme(applyDeviceTheme), []);
 
     useEffect(() => {
         const supabase = createSupabaseBrowserClient();
