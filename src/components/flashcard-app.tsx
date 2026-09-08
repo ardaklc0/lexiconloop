@@ -31,7 +31,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { deleteFolder, deleteWord, deleteWorkspace, insertFolder, insertWord, insertWorkspace, loadUserData, loadWorkspaces, saveReview, updateFolder, updateWord } from "@/lib/supabase/data";
 import type { CardState, Folder, ReviewLog, ReviewRating, WordRecord, Workspace } from "@/lib/types";
 
-type View = "review" | "words" | "folders" | "statistics" | "settings";
+type View = "review" | "words" | "folders" | "statistics" | "settings" | "add" | "add-folder";
 type Filter = "all" | CardState;
 
 const navItems: Array<{ id: View; label: string; icon: typeof BookOpenCheck }> = [
@@ -47,9 +47,13 @@ const titleForView: Record<View, string> = {
     folders: "Your collections",
     statistics: "A little progress",
     settings: "Your preferences",
+    add: "Add a word",
+    "add-folder": "New folder",
 };
 
 const subtitleForView: Record<View, string> = {
+    add: "Give it just enough context to stick.",
+    "add-folder": "Keep a small set of related words together.",
     review: "A few deliberate minutes is enough for today.",
     words: "Every word has a place in your memory.",
     folders: "Keep related words close together.",
@@ -88,10 +92,9 @@ export default function FlashcardApp() {
     const [cloudMode, setCloudMode] = useState(true);
     const [syncStatus, setSyncStatus] = useState("");
     const [isFlipped, setIsFlipped] = useState(false);
-    const [showAddModal, setShowAddModal] = useState(false);
+    const [returnView, setReturnView] = useState<View>("words");
     const [showMobileMenu, setShowMobileMenu] = useState(false);
     const [editingWordId, setEditingWordId] = useState<string | null>(null);
-    const [showFolderModal, setShowFolderModal] = useState(false);
     const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
     const [folderForm, setFolderForm] = useState({ name: "", description: "", color: "#dcebe1" });
     const [darkMode, setDarkMode] = useState(false);
@@ -299,7 +302,7 @@ export default function FlashcardApp() {
 
     useEffect(() => {
         const handleKey = (event: KeyboardEvent) => {
-            if (showAddModal) return;
+            if (activeView === "add") return;
             if (activeView !== "review") return;
             if (event.key === " " || event.key === "Enter") {
                 event.preventDefault();
@@ -310,20 +313,22 @@ export default function FlashcardApp() {
         };
         window.addEventListener("keydown", handleKey);
         return () => window.removeEventListener("keydown", handleKey);
-    }, [activeView, currentCard, handleReview, isFlipped, showAddModal]);
+    }, [activeView, currentCard, handleReview, isFlipped]);
 
     function openAddModal() {
         setEditingWordId(null);
         setForm({ word: "", meaning: "", exampleSentence: "", folderId: folders[0]?.id ?? "", notes: "" });
         setScanStatus("");
-        setShowAddModal(true);
+        setReturnView(activeView === "add" ? returnView : activeView);
+        setActiveView("add");
     }
 
     function openEditWord(card: WordRecord) {
         setEditingWordId(card.id);
         setForm({ word: card.word, meaning: card.meaning, exampleSentence: card.exampleSentence ?? "", folderId: card.folderId, notes: card.notes ?? "" });
         setScanStatus("");
-        setShowAddModal(true);
+        setReturnView(activeView === "add" ? returnView : activeView);
+        setActiveView("add");
     }
 
     async function addWord(event: React.FormEvent<HTMLFormElement>) {
@@ -336,7 +341,7 @@ export default function FlashcardApp() {
             if (!previous) return;
             const updated = { ...previous, word: form.word.trim(), meaning: form.meaning.trim(), exampleSentence: form.exampleSentence.trim() || undefined, folderId: form.folderId, notes: form.notes.trim() || undefined };
             setCards((items) => items.map((card) => card.id === editingWordId ? updated : card));
-            setShowAddModal(false);
+            setActiveView(returnView);
             if (cloud) {
                 setSyncStatus("Saving changes...");
                 try {
@@ -376,7 +381,6 @@ export default function FlashcardApp() {
                 createdAt, state: "new", stability: .25, difficulty: 5, dueAt: now, reps: 0, lapses: 0,
             };
             setCards((previous) => [newCard, ...previous]);
-            setShowAddModal(false);
             setActiveView("words");
             setSyncStatus(cloud ? "Synced" : "Saved locally");
         } catch (error) {
@@ -387,13 +391,15 @@ export default function FlashcardApp() {
     async function addFolder() {
         setEditingFolderId(null);
         setFolderForm({ name: "", description: "", color: "#dcebe1" });
-        setShowFolderModal(true);
+        setReturnView(activeView === "add-folder" ? returnView : activeView);
+        setActiveView("add-folder");
     }
 
     function openEditFolder(folder: Folder) {
         setEditingFolderId(folder.id);
         setFolderForm({ name: folder.name, description: folder.description, color: folder.color });
-        setShowFolderModal(true);
+        setReturnView(activeView === "add-folder" ? returnView : activeView);
+        setActiveView("add-folder");
     }
 
     async function saveFolder(event: React.FormEvent<HTMLFormElement>) {
@@ -419,7 +425,7 @@ export default function FlashcardApp() {
                 const folder = cloud ? await insertFolder(cloud.client, cloud.userId, cloud.workspaceId, input) : { ...input, id: makeId() };
                 setFolders((previous) => [...previous, folder]);
             }
-            setShowFolderModal(false);
+            setActiveView(returnView);
             setSyncStatus(cloud ? "Synced" : "Saved locally");
         } catch (error) {
             setSyncStatus(error instanceof Error ? error.message : "Folder could not be saved.");
@@ -600,7 +606,11 @@ export default function FlashcardApp() {
             const selectedCards = getFolderCards(selectedFolder.id);
             return <section className="folder-detail"><button className="ghost-button" onClick={() => setSelectedFolderId(null)}><ArrowLeft size={14} /> All folders</button><div className="folder-detail-header"><div className="folder-color" style={{ background: selectedFolder.color }} /><div><div className="eyebrow">Folder</div><h2>{selectedFolder.name}</h2><p>{selectedFolder.description}</p></div></div><div className="folder-detail-list">{selectedCards.length ? selectedCards.map((card) => <div className="word-row" key={card.id}><div className="word-main"><strong>{card.word}</strong><span>{card.meaning || "Meaning to be added"}</span></div><span className={`state-tag state-${card.state}`}>{card.state}</span><div className="row-actions"><button className="icon-button" onClick={() => openEditWord(card)} aria-label={`Edit ${card.word}`}><Pencil size={14} /></button><button className="icon-button danger-button" onClick={() => void removeWord(card)} aria-label={`Delete ${card.word}`}><Trash2 size={14} /></button></div></div>) : <div className="no-results">No words in this folder yet.</div>}</div></section>;
         }
-        return <><div className="folder-grid">{folders.map((folder) => { const folderCards = getFolderCards(folder.id); const due = folderCards.filter((card) => new Date(card.dueAt).getTime() <= Date.now()).length; return <div className="folder-card" key={folder.id}><div className="folder-card-top"><div className="folder-color" style={{ background: folder.color }} /><div className="row-actions"><button className="icon-button" onClick={() => openEditFolder(folder)} aria-label={`Edit ${folder.name}`}><Pencil size={14} /></button><button className="icon-button danger-button" onClick={() => void removeFolder(folder)} aria-label={`Delete ${folder.name}`}><Trash2 size={14} /></button></div></div><h3>{folder.name}</h3><p>{folder.description}</p><div className="folder-meta"><span>{folderCards.length} {folderCards.length === 1 ? "word" : "words"}</span><span>{due} due</span></div></div> })}<button className="folder-card" onClick={addFolder} style={{ borderStyle: "dashed", alignItems: "center", justifyContent: "center", color: "var(--sage)" }}><CirclePlus size={22} /><span style={{ marginTop: 10, fontSize: 12, fontWeight: 700 }}>New folder</span></button></div>{showFolderModal && <div className="modal-backdrop" role="presentation"><div className="modal" role="dialog" aria-modal="true" aria-labelledby="folder-title"><div className="modal-header"><div><div className="eyebrow">Collection</div><h2 id="folder-title">{editingFolderId ? "Edit folder" : "New folder"}</h2><p>Keep a small set of related words together.</p></div><button className="icon-button" onClick={() => setShowFolderModal(false)} aria-label="Close"><X size={17} /></button></div><form className="form-grid" onSubmit={saveFolder}><div className="field"><label htmlFor="folder-name">Name</label><input id="folder-name" required value={folderForm.name} onChange={(event) => setFolderForm((previous) => ({ ...previous, name: event.target.value }))} placeholder="e.g. German B2" /></div><div className="field"><label htmlFor="folder-description">Description</label><textarea id="folder-description" value={folderForm.description} onChange={(event) => setFolderForm((previous) => ({ ...previous, description: event.target.value }))} placeholder="A short note about this collection" /></div><div className="field"><label htmlFor="folder-color">Color</label><input id="folder-color" type="color" value={folderForm.color} onChange={(event) => setFolderForm((previous) => ({ ...previous, color: event.target.value }))} /></div><div className="modal-footer"><button type="button" className="ghost-button" onClick={() => setShowFolderModal(false)}>Cancel</button><button className="primary-button" type="submit"><Check size={15} /> Save folder</button></div></form></div></div>}</>;
+        return <div className="folder-grid">{folders.map((folder) => { const folderCards = getFolderCards(folder.id); const due = folderCards.filter((card) => new Date(card.dueAt).getTime() <= Date.now()).length; return <div className="folder-card" key={folder.id}><div className="folder-card-top"><div className="folder-color" style={{ background: folder.color }} /><div className="row-actions"><button className="icon-button" onClick={() => openEditFolder(folder)} aria-label={`Edit ${folder.name}`}><Pencil size={14} /></button><button className="icon-button danger-button" onClick={() => void removeFolder(folder)} aria-label={`Delete ${folder.name}`}><Trash2 size={14} /></button></div></div><h3>{folder.name}</h3><p>{folder.description}</p><div className="folder-meta"><span>{folderCards.length} {folderCards.length === 1 ? "word" : "words"}</span><span>{due} due</span></div></div> })}<button className="folder-card" onClick={addFolder} style={{ borderStyle: "dashed", alignItems: "center", justifyContent: "center", color: "var(--sage)" }}><CirclePlus size={22} /><span style={{ marginTop: 10, fontSize: 12, fontWeight: 700 }}>New folder</span></button></div>;
+    }
+
+    function renderAddFolder() {
+        return <div className="modal add-word-page" role="region" aria-labelledby="folder-title"><div className="modal-header"><div><div className="eyebrow">Collection</div><h2 id="folder-title">{editingFolderId ? "Edit folder" : "New folder"}</h2><p>Keep a small set of related words together.</p></div><button className="icon-button" onClick={() => setActiveView(returnView)} aria-label="Close"><X size={17} /></button></div><form className="form-grid" onSubmit={saveFolder}><div className="field"><label htmlFor="folder-name">Name</label><input id="folder-name" required value={folderForm.name} onChange={(event) => setFolderForm((previous) => ({ ...previous, name: event.target.value }))} placeholder="e.g. German B2" /></div><div className="field"><label htmlFor="folder-description">Description</label><textarea id="folder-description" value={folderForm.description} onChange={(event) => setFolderForm((previous) => ({ ...previous, description: event.target.value }))} placeholder="A short note about this collection" /></div><div className="field"><label htmlFor="folder-color">Color</label><input id="folder-color" type="color" value={folderForm.color} onChange={(event) => setFolderForm((previous) => ({ ...previous, color: event.target.value }))} /></div><div className="modal-footer"><button type="button" className="ghost-button" onClick={() => setActiveView(returnView)}>Cancel</button><button className="primary-button" type="submit"><Check size={15} /> Save folder</button></div></form></div>;
     }
 
     function renderStatistics() {
@@ -625,9 +635,13 @@ export default function FlashcardApp() {
         return <><div className="stats-grid">{stats.map((stat) => <div className="big-stat" key={stat.label}><small>{stat.label}</small><strong>{stat.value}</strong><span className="stat-detail">{stat.detail}</span></div>)}</div><div className="stats-detail-grid"><section className="surface-panel"><div className="panel-heading"><div><h2>Reviews this week</h2><p className="panel-subtitle">Your practice by day</p></div><span className="mono-label">Last 7 days</span></div><div className="bar-chart">{dayBuckets.map((day, index) => <div className="bar-column" key={day.date.toISOString()}><div className={`bar ${index === 6 ? "today" : ""}`} style={{ height: `${Math.max(day.count ? 12 : 3, (day.count / maxReviews) * 100)}%` }} /><span>{day.date.toLocaleDateString("en-US", { weekday: "short" }).slice(0, 1)}</span></div>)}</div></section><section className="surface-panel stats-explanation"><div className="panel-heading"><div><h2>What this means</h2><p className="panel-subtitle">A quick read of your progress</p></div><BarChart3 size={17} color="var(--sage)" /></div><div className="stat-row"><span className="stat-label"><span className="dot-icon dot-sage" />Due now</span><strong className="stat-value">{dueCount}</strong></div><div className="stat-row"><span className="stat-label"><span className="dot-icon dot-peach" />Current streak</span><strong className="stat-value">{calculateStreak(logs)} days</strong></div><p className="stats-note">Keep reviewing on different days. A steady streak helps the scheduler space cards at the right time.</p></section></div></>;
     }
 
+    function renderAddWord() {
+        return <div className="modal add-word-page" role="region" aria-labelledby="add-word-title"><div className="modal-header"><div><div className="eyebrow">New vocabulary</div><h2 id="add-word-title">{editingWordId ? "Edit word" : "Add a word"}</h2><p>Give it just enough context to stick.</p></div><button className="icon-button" onClick={() => setActiveView(returnView)} aria-label="Close"><X size={17} /></button></div><form className="form-grid" onSubmit={addWord}><div className="field"><label htmlFor="word">Word or phrase</label><div className="input-with-action"><input id="word" required value={form.word} onChange={(event) => setForm((previous) => ({ ...previous, word: event.target.value }))} placeholder="e.g. der Kies" /><label className="input-action" style={{ display: "inline-flex", alignItems: "center", cursor: "pointer" }}><Camera size={14} /><span>Scan</span><input type="file" accept="image/*" capture="environment" onChange={scanImage} style={{ display: "none" }} /></label></div></div><div className="field"><label htmlFor="meaning">Meaning</label><input id="meaning" value={form.meaning} onChange={(event) => setForm((previous) => ({ ...previous, meaning: event.target.value }))} placeholder="e.g. çakıl, mıcır" /></div><div className="field"><label htmlFor="example">Example sentence <span style={{ textTransform: "none", letterSpacing: 0 }}>(optional)</span></label><div className="input-with-action"><input id="example" value={form.exampleSentence} onChange={(event) => setForm((previous) => ({ ...previous, exampleSentence: event.target.value }))} placeholder="Write one or generate it" /><button type="button" className="input-action" onClick={generateSentence} disabled={generating || !form.word.trim()}><Sparkles size={13} />{generating ? "Writing..." : "Generate"}</button></div></div>{scanStatus && <div className="camera-note">{scanStatus}</div>}<div className="field"><label htmlFor="folder">Folder</label><select id="folder" value={form.folderId} onChange={(event) => setForm((previous) => ({ ...previous, folderId: event.target.value }))}>{folders.map((folder) => <option value={folder.id} key={folder.id}>{folder.name}</option>)}</select></div><div className="field"><label htmlFor="notes">Notes <span style={{ textTransform: "none", letterSpacing: 0 }}>(optional)</span></label><textarea id="notes" value={form.notes} onChange={(event) => setForm((previous) => ({ ...previous, notes: event.target.value }))} placeholder="A small memory hook..." /></div><div className="modal-footer"><button type="button" className="ghost-button" onClick={() => setActiveView(returnView)}>Cancel</button><button className="primary-button" type="submit"><Check size={15} /> Save word</button></div></form></div>;
+    }
+
     function renderSettings() {
         return <section className="surface-panel"><div className="panel-heading"><h2>Learning setup</h2><ShieldCheck size={17} color="var(--sage)" /></div><div className="settings-list"><div className="setting-row"><div className="setting-copy"><strong>Workspace</strong><span>Switch your learning shelf.</span></div><div className="setting-control"><select value={workspace} onChange={(event) => void switchWorkspace(event.target.value)}>{(cloudMode ? workspaces.map((item) => item.name) : ["Arda's notebook", "Travel words", "Reading shelf"]).map((item) => <option key={item}>{item}</option>)}</select><button className="icon-button" onClick={() => void addWorkspace()} aria-label="Create workspace"><CirclePlus size={15} /></button></div></div><div className="setting-row"><div className="setting-copy"><strong>New cards per day</strong><span>Keep the first step light.</span></div><select defaultValue="20"><option>10</option><option>20</option><option>30</option></select></div><div className="setting-row"><div className="setting-copy"><strong>Dark mode</strong><span>Use a lower-light palette.</span></div><button className={`toggle ${darkMode ? "on" : ""}`} onClick={() => setDarkMode((value) => !value)} aria-label="Toggle dark mode"><i /></button></div><div className="setting-row"><div className="setting-copy"><strong>Sync status</strong><span>{syncStatus || (cloudMode ? "Connected to Supabase" : "Local demo mode")}</span></div><span className="state-tag state-review">{cloudMode ? "Cloud" : "Local"}</span></div><div className="setting-row"><div className="setting-copy"><strong>Keyboard shortcuts</strong><span>Reveal with Space, rate with arrows.</span></div><Keyboard size={18} color="var(--muted)" /></div><div className="setting-row"><div className="setting-copy"><strong>Account</strong><span>Sign out from this workspace.</span></div><button className="ghost-button" onClick={() => void signOut()}><LogOut size={14} /> Sign out</button></div></div></section>;
     }
 
-    return <div className="app-shell"><aside className="sidebar"><div className="brand"><div className="brand-mark"><BookOpenCheck size={17} /></div><span className="brand-name">Lexicon Loop</span></div><div className="workspace-label">Workspace</div><div className="workspace-picker"><span className="workspace-dot" /><span style={{ flex: 1 }}>Arda&apos;s notebook</span><ChevronDown size={14} color="var(--muted)" /></div><nav className="nav-group" aria-label="Main navigation">{navItems.map(({ id, label, icon: Icon }) => <button className={`nav-button ${activeView === id ? "active" : ""}`} key={id} onClick={() => { setActiveView(id); setIsFlipped(false); }}><Icon size={16} />{label}{id === "review" && dueCount > 0 && <span className="nav-count">{dueCount}</span>}</button>)}<button className={`nav-button ${activeView === "settings" ? "active" : ""}`} onClick={() => setActiveView("settings")}><Settings2 size={16} />Settings</button></nav><div className="sidebar-spacer" /><div className="sidebar-profile"><div className="avatar">AK</div><div className="profile-copy"><strong>Arda Kaya</strong><span>Free workspace</span></div><Menu size={16} color="var(--muted)" /></div></aside><div className="main-area"><div className="topbar-mobile"><div className="mobile-brand"><div className="brand-mark"><BookOpenCheck size={15} /></div>Lexicon Loop</div><button className="icon-button" onClick={openAddModal} aria-label="Add word"><CirclePlus size={18} /></button></div><main className="page-wrap"><header className="page-header"><div><div className="eyebrow">{activeView === "review" ? "Tuesday · 08 September 2026" : "Your library"}</div><h1>{titleForView[activeView]}</h1><p>{subtitleForView[activeView]}</p></div><div className="header-actions"><button className="icon-button" aria-label="Search" onClick={() => setActiveView("words")}><Search size={17} /></button><button className="primary-button" onClick={openAddModal}><CirclePlus size={16} /> Add word</button></div></header>{activeView === "review" && renderReview()}{activeView === "words" && renderWords()}{activeView === "folders" && renderFolders()}{activeView === "statistics" && renderStatistics()}{activeView === "settings" && renderSettings()}</main></div><nav className="mobile-nav" aria-label="Mobile navigation">{navItems.map(({ id, label, icon: Icon }) => <button key={id} className={activeView === id ? "active" : ""} onClick={() => setActiveView(id)}><Icon size={18} /><span>{label}</span></button>)}<button className="add-mobile" onClick={openAddModal}><span><CirclePlus size={17} /></span><small>Add</small></button></nav>{showAddModal && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowAddModal(false); }}><div className="modal" role="dialog" aria-modal="true" aria-labelledby="add-word-title"><div className="modal-header"><div><div className="eyebrow">New vocabulary</div><h2 id="add-word-title">Add a word</h2><p>Give it just enough context to stick.</p></div><button className="icon-button" onClick={() => setShowAddModal(false)} aria-label="Close"><X size={17} /></button></div><form className="form-grid" onSubmit={addWord}><div className="field"><label htmlFor="word">Word or phrase</label><div className="input-with-action"><input id="word" required value={form.word} onChange={(event) => setForm((previous) => ({ ...previous, word: event.target.value }))} placeholder="e.g. der Kies" /><label className="input-action" style={{ display: "inline-flex", alignItems: "center", cursor: "pointer" }}><Camera size={14} /><span>Scan</span><input type="file" accept="image/*" capture="environment" onChange={scanImage} style={{ display: "none" }} /></label></div></div><div className="field"><label htmlFor="meaning">Meaning</label><input id="meaning" value={form.meaning} onChange={(event) => setForm((previous) => ({ ...previous, meaning: event.target.value }))} placeholder="e.g. çakıl, mıcır" /></div><div className="field"><label htmlFor="example">Example sentence <span style={{ textTransform: "none", letterSpacing: 0 }}>(optional)</span></label><div className="input-with-action"><input id="example" value={form.exampleSentence} onChange={(event) => setForm((previous) => ({ ...previous, exampleSentence: event.target.value }))} placeholder="Write one or generate it" /><button type="button" className="input-action" onClick={generateSentence} disabled={generating || !form.word.trim()}><Sparkles size={13} />{generating ? "Writing..." : "Generate"}</button></div></div>{scanStatus && <div className="camera-note">{scanStatus}</div>}<div className="field"><label htmlFor="folder">Folder</label><select id="folder" value={form.folderId} onChange={(event) => setForm((previous) => ({ ...previous, folderId: event.target.value }))}>{folders.map((folder) => <option value={folder.id} key={folder.id}>{folder.name}</option>)}</select></div><div className="field"><label htmlFor="notes">Notes <span style={{ textTransform: "none", letterSpacing: 0 }}>(optional)</span></label><textarea id="notes" value={form.notes} onChange={(event) => setForm((previous) => ({ ...previous, notes: event.target.value }))} placeholder="A small memory hook..." /></div><div className="modal-footer"><button type="button" className="ghost-button" onClick={() => setShowAddModal(false)}>Cancel</button><button className="primary-button" type="submit"><Check size={15} /> Save word</button></div></form></div></div>}</div>;
+    return <div className="app-shell"><aside className="sidebar"><div className="brand"><div className="brand-mark"><BookOpenCheck size={17} /></div><span className="brand-name">Lexicon Loop</span></div><div className="workspace-label">Workspace</div><div className="workspace-picker"><span className="workspace-dot" /><span style={{ flex: 1 }}>Arda&apos;s notebook</span><ChevronDown size={14} color="var(--muted)" /></div><nav className="nav-group" aria-label="Main navigation">{navItems.map(({ id, label, icon: Icon }) => <button className={`nav-button ${activeView === id ? "active" : ""}`} key={id} onClick={() => { setActiveView(id); setIsFlipped(false); }}><Icon size={16} />{label}{id === "review" && dueCount > 0 && <span className="nav-count">{dueCount}</span>}</button>)}<button className={`nav-button ${activeView === "settings" ? "active" : ""}`} onClick={() => setActiveView("settings")}><Settings2 size={16} />Settings</button></nav><div className="sidebar-spacer" /><div className="sidebar-profile"><div className="avatar">AK</div><div className="profile-copy"><strong>Arda Kaya</strong><span>Free workspace</span></div><Menu size={16} color="var(--muted)" /></div></aside><div className="main-area"><div className="topbar-mobile"><div className="mobile-brand"><div className="brand-mark"><BookOpenCheck size={15} /></div>Lexicon Loop</div><button className="icon-button" onClick={openAddModal} aria-label="Add word"><CirclePlus size={18} /></button></div><main className="page-wrap">{activeView !== "add" && activeView !== "add-folder" && <header className="page-header"><div><div className="eyebrow">{activeView === "review" ? "Tuesday · 08 September 2026" : "Your library"}</div><h1>{titleForView[activeView]}</h1><p>{subtitleForView[activeView]}</p></div><div className="header-actions"><button className="icon-button" aria-label="Search" onClick={() => setActiveView("words")}><Search size={17} /></button><button className="primary-button" onClick={openAddModal}><CirclePlus size={16} /> Add word</button></div></header>}{activeView === "review" && renderReview()}{activeView === "words" && renderWords()}{activeView === "folders" && renderFolders()}{activeView === "statistics" && renderStatistics()}{activeView === "settings" && renderSettings()}{activeView === "add" && renderAddWord()}{activeView === "add-folder" && renderAddFolder()}</main></div><nav className="mobile-nav" aria-label="Mobile navigation">{navItems.map(({ id, label, icon: Icon }) => <button key={id} className={activeView === id ? "active" : ""} onClick={() => setActiveView(id)}><Icon size={18} /><span>{label}</span></button>)}<button className="add-mobile" onClick={openAddModal}><span><CirclePlus size={17} /></span><small>Add</small></button></nav></div>;
 }

@@ -1214,6 +1214,12 @@ select.workspace-picker {
     box-shadow: 0 24px 80px rgba(25, 51, 46, .2);
 }
 
+.add-word-page {
+    margin: 0 auto;
+    box-shadow: none;
+    border: 1px solid var(--line);
+}
+
 .modal-header {
     display: flex;
     justify-content: space-between;
