@@ -1,0 +1,10 @@
+{
+    "name": "Lexicon Loop",
+    "short_name": "Lexicon",
+    "description": "A calmer way to remember the words that matter.",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#f7f4ec",
+    "theme_color": "#1f3b36",
+    "icons": []
+}
