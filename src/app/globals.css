@@ -1355,6 +1355,14 @@ select.workspace-picker {
 }
 
 @media (max-width: 720px) {
+
+    /* iOS Safari zooms focused controls below 16px. Keep focus without viewport zoom. */
+    input,
+    textarea,
+    select {
+        font-size: 16px;
+    }
+
     .app-shell {
         display: block;
     }
