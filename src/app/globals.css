@@ -1062,6 +1062,12 @@ select.workspace-picker {
     grid-template-columns: minmax(0, 1fr) auto auto;
 }
 
+@media (min-width: 721px) and (max-width: 820px) {
+    .folder-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
 .stats-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
