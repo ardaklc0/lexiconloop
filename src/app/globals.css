@@ -1422,11 +1422,11 @@ select.workspace-picker {
 
     .topbar-mobile {
         display: flex;
-        height: 64px;
+        height: calc(64px + env(safe-area-inset-top));
         border-bottom: 1px solid var(--line);
         align-items: center;
         justify-content: space-between;
-        padding: 0 16px;
+        padding: env(safe-area-inset-top) 16px 0;
         background: #f3f0e8;
     }
 
@@ -1444,7 +1444,7 @@ select.workspace-picker {
         display: flex;
         position: fixed;
         z-index: 30;
-        top: 64px;
+        top: calc(64px + env(safe-area-inset-top));
         bottom: 0;
         left: 0;
         width: min(280px, 86vw);
@@ -1460,7 +1460,7 @@ select.workspace-picker {
         content: "";
         position: fixed;
         z-index: 20;
-        inset: 64px 0 0;
+        inset: calc(64px + env(safe-area-inset-top)) 0 0;
         background: rgba(25, 51, 46, .25);
     }
 
