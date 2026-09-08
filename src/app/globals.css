@@ -40,6 +40,7 @@ html {
     transition: background 0.2s ease;
     touch-action: pan-y;
     overscroll-behavior-x: none;
+    -webkit-text-size-adjust: 100%;
 }
 
 body {
@@ -1260,7 +1261,7 @@ select.workspace-picker {
     padding: 11px 12px;
     outline: 0;
     color: var(--ink);
-    font-size: 16px;
+    font-size: 17px;
 }
 
 .field input:focus,
@@ -1363,7 +1364,7 @@ select.workspace-picker {
     input,
     textarea,
     select {
-        font-size: 16px;
+        font-size: 17px;
     }
 
     .app-shell {
