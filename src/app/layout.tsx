@@ -5,6 +5,11 @@ export const metadata: Metadata = {
     title: "Lexicon Loop",
     description: "A calmer way to remember the words that matter.",
     manifest: "/manifest.webmanifest",
+    appleWebApp: {
+        capable: true,
+        statusBarStyle: "black-translucent",
+        title: "Lexicon Loop",
+    },
 };
 
 export const viewport: Viewport = {
@@ -13,6 +18,7 @@ export const viewport: Viewport = {
     minimumScale: 1,
     maximumScale: 1,
     userScalable: false,
+    viewportFit: "cover",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
