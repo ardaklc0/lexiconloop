@@ -993,6 +993,11 @@ select.workspace-picker {
     align-items: flex-start;
 }
 
+.folder-card-top .folder-color {
+    width: 40px;
+    height: 40px;
+}
+
 .folder-color {
     width: 28px;
     height: 28px;
@@ -1051,6 +1056,10 @@ select.workspace-picker {
 .folder-detail-list {
     display: grid;
     gap: 7px;
+}
+
+.folder-detail-list .word-row {
+    grid-template-columns: minmax(0, 1fr) auto auto;
 }
 
 .stats-grid {
