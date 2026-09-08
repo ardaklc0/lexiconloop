@@ -121,10 +121,21 @@ export default function FlashcardApp() {
         document.addEventListener("gesturestart", preventGestureZoom, { passive: false });
         document.addEventListener("gesturechange", preventGestureZoom, { passive: false });
         document.addEventListener("gestureend", preventGestureZoom, { passive: false });
+
+        // iOS still honors double-tap-to-zoom regardless of viewport meta; block it manually.
+        let lastTouchEnd = 0;
+        const preventDoubleTapZoom = (event: TouchEvent) => {
+            const now = Date.now();
+            if (now - lastTouchEnd <= 350) event.preventDefault();
+            lastTouchEnd = now;
+        };
+        document.addEventListener("touchend", preventDoubleTapZoom, { passive: false });
+
         return () => {
             document.removeEventListener("gesturestart", preventGestureZoom);
             document.removeEventListener("gesturechange", preventGestureZoom);
             document.removeEventListener("gestureend", preventGestureZoom);
+            document.removeEventListener("touchend", preventDoubleTapZoom);
         };
     }, []);
 
