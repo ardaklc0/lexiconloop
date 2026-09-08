@@ -1260,7 +1260,7 @@ select.workspace-picker {
     padding: 11px 12px;
     outline: 0;
     color: var(--ink);
-    font-size: 13px;
+    font-size: 16px;
 }
 
 .field input:focus,
