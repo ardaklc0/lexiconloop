@@ -208,23 +208,6 @@ export default function FlashcardApp() {
     }, [showMobileMenu]);
 
     useEffect(() => {
-        const folderCards = document.querySelectorAll<HTMLElement>(".folder-grid .folder-card");
-        const handlers: Array<{ element: HTMLElement; handler: (event: Event) => void }> = [];
-        folders.forEach((folder, index) => {
-            const element = folderCards[index];
-            if (!element) return;
-            element.style.cursor = "pointer";
-            const handler = (event: Event) => {
-                if ((event.target as HTMLElement).closest("button")) return;
-                setSelectedFolderId(folder.id);
-            };
-            element.addEventListener("click", handler);
-            handlers.push({ element, handler });
-        });
-        return () => handlers.forEach(({ element, handler }) => element.removeEventListener("click", handler));
-    }, [activeView, folders]);
-
-    useEffect(() => {
         let cancelled = false;
 
         async function hydrate() {
@@ -612,7 +595,7 @@ export default function FlashcardApp() {
             const selectedCards = getFolderCards(selectedFolder.id);
             return <section className="folder-detail"><button className="ghost-button" onClick={() => setSelectedFolderId(null)}><ArrowLeft size={14} /> All folders</button><div className="folder-detail-header"><div className="folder-color" style={{ background: selectedFolder.color }} /><div><div className="eyebrow">Folder</div><h2>{selectedFolder.name}</h2><p>{selectedFolder.description}</p></div></div><div className="folder-detail-list">{selectedCards.length ? selectedCards.map((card) => <div className="word-row" key={card.id}><div className="word-main"><strong>{card.word}</strong><span>{card.meaning || "Meaning to be added"}</span></div><span className={`state-tag state-${card.state}`}>{card.state}</span><div className="row-actions"><button className="icon-button" onClick={() => openEditWord(card)} aria-label={`Edit ${card.word}`}><Pencil size={14} /></button><button className="icon-button danger-button" onClick={() => void removeWord(card)} aria-label={`Delete ${card.word}`}><Trash2 size={14} /></button></div></div>) : <div className="no-results">No words in this folder yet.</div>}</div></section>;
         }
-        return <div className="folder-grid">{folders.map((folder) => { const folderCards = getFolderCards(folder.id); const due = folderCards.filter((card) => new Date(card.dueAt).getTime() <= now).length; return <div className="folder-card" key={folder.id}><div className="folder-card-top"><div className="folder-color" style={{ background: folder.color }} /><div className="row-actions"><button className="icon-button" onClick={() => openEditFolder(folder)} aria-label={`Edit ${folder.name}`}><Pencil size={14} /></button><button className="icon-button danger-button" onClick={() => void removeFolder(folder)} aria-label={`Delete ${folder.name}`}><Trash2 size={14} /></button></div></div><h3>{folder.name}</h3><p>{folder.description}</p><div className="folder-meta"><span>{folderCards.length} {folderCards.length === 1 ? "word" : "words"}</span><span>{due} due</span></div></div> })}<button className="folder-card" onClick={addFolder} style={{ borderStyle: "dashed", alignItems: "center", justifyContent: "center", color: "var(--sage)" }}><CirclePlus size={22} /><span style={{ marginTop: 10, fontSize: 12, fontWeight: 700 }}>New folder</span></button></div>;
+        return <div className="folder-grid">{folders.map((folder) => { const folderCards = getFolderCards(folder.id); const due = folderCards.filter((card) => new Date(card.dueAt).getTime() <= now).length; return <div className="folder-card" key={folder.id} onClick={(event) => { if ((event.target as HTMLElement).closest("button")) return; setSelectedFolderId(folder.id); }}><div className="folder-card-top"><div className="folder-color" style={{ background: folder.color }} /><div className="row-actions"><button className="icon-button" onClick={() => openEditFolder(folder)} aria-label={`Edit ${folder.name}`}><Pencil size={14} /></button><button className="icon-button danger-button" onClick={() => void removeFolder(folder)} aria-label={`Delete ${folder.name}`}><Trash2 size={14} /></button></div></div><h3>{folder.name}</h3><p>{folder.description}</p><div className="folder-meta"><span>{folderCards.length} {folderCards.length === 1 ? "word" : "words"}</span><span>{due} due</span></div></div> })}<button className="folder-card" onClick={addFolder} style={{ borderStyle: "dashed", alignItems: "center", justifyContent: "center", color: "var(--sage)" }}><CirclePlus size={22} /><span style={{ marginTop: 10, fontSize: 12, fontWeight: 700 }}>New folder</span></button></div>;
     }
 
     function renderAddFolder() {
