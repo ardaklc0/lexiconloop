@@ -54,7 +54,7 @@ const navItems: Array<{ id: View; label: string; icon: typeof BookOpenCheck }> =
 ];
 
 const titleForView: Record<View, string> = {
-    review: "Hi",
+    review: "Hello there",
     words: "Your vocabulary",
     folders: "Your collections",
     statistics: "A little progress",

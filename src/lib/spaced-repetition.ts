@@ -1,12 +1,19 @@
 import type { ReviewRating, ReviewResult, WordRecord } from "@/lib/types";
 
 const MINUTE = 60 * 1000;
+const HOUR = 60 * MINUTE;
 const DAY = 24 * 60 * MINUTE;
 
 export const formatDueIn = (dueAt: string, now = new Date()) => {
     const diff = new Date(dueAt).getTime() - now.getTime();
     if (diff <= 0) return "Due now";
-    if (diff < DAY) return `In ${Math.max(1, Math.ceil(diff / MINUTE))} min`;
+    if (diff < DAY) {
+        const totalMinutes = Math.max(1, Math.ceil(diff / MINUTE));
+        const hours = Math.floor((totalMinutes * MINUTE) / HOUR);
+        const minutes = totalMinutes % 60;
+        if (hours > 0) return `In ${hours}h${minutes ? ` ${minutes}min` : ""}`;
+        return `In ${totalMinutes} min`;
+    }
     const days = Math.ceil(diff / DAY);
     return `In ${days} day${days === 1 ? "" : "s"}`;
 };
