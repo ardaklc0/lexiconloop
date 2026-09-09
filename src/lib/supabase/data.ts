@@ -210,12 +210,14 @@ export async function insertFolder(client: SupabaseClient, userId: string, works
     return data as FolderRow;
 }
 
-export async function updateWord(client: SupabaseClient, userId: string, workspaceId: string, wordId: string, input: Pick<WordRecord, "word" | "meaning" | "exampleSentence" | "folderId" | "notes">) {
+export async function updateWord(client: SupabaseClient, userId: string, workspaceId: string, wordId: string, input: Pick<WordRecord, "word" | "meaning" | "exampleSentence" | "folderId" | "sourceLanguage" | "targetLanguage" | "notes">) {
     const { error } = await client.from("words").update({
         word: input.word,
         meaning: input.meaning,
         example_sentence: input.exampleSentence ?? null,
         folder_id: input.folderId || null,
+        source_language: input.sourceLanguage,
+        target_language: input.targetLanguage,
         notes: input.notes ?? null,
         updated_at: new Date().toISOString(),
     }).eq("id", wordId).eq("user_id", userId).eq("workspace_id", workspaceId);

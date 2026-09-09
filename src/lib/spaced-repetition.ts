@@ -6,8 +6,8 @@ const DAY = 24 * 60 * MINUTE;
 export const formatDueIn = (dueAt: string, now = new Date()) => {
     const diff = new Date(dueAt).getTime() - now.getTime();
     if (diff <= 0) return "Due now";
-    if (diff < DAY) return `In ${Math.max(1, Math.round(diff / (60 * MINUTE)))} min`;
-    const days = Math.round(diff / DAY);
+    if (diff < DAY) return `In ${Math.max(1, Math.ceil(diff / MINUTE))} min`;
+    const days = Math.ceil(diff / DAY);
     return `In ${days} day${days === 1 ? "" : "s"}`;
 };
 
