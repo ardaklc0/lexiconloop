@@ -120,7 +120,7 @@ export default function FlashcardApp() {
     const [generating, setGenerating] = useState(false);
     const [scanStatus, setScanStatus] = useState("");
     const [form, setForm] = useState<WordForm>({ word: "", meaning: "", exampleSentence: "", folderId: "", sourceLanguage: "German", targetLanguage: "Turkish", notes: "" });
-    const touchStart = useRef<number | null>(null);
+    const touchStart = useRef<{ x: number; y: number } | null>(null);
     const supabaseRef = useRef<ReturnType<typeof createSupabaseBrowserClient>>(null);
     const userIdRef = useRef<string | null>(null);
 
@@ -586,7 +586,7 @@ export default function FlashcardApp() {
                         <div className="stage-progress"><span>{dueCount} cards remaining</span><div className="progress-track"><div className="progress-fill" style={{ width: `${Math.max(7, Math.min(100, ((cards.length - dueCount) / Math.max(cards.length, 1)) * 100))}%` }} /></div></div>
                     </div>
                     {currentCard ? <>
-                        <div className="flashcard-wrap" onTouchStart={(event) => { touchStart.current = event.changedTouches[0]?.clientX ?? null; }} onTouchEnd={(event) => { const end = event.changedTouches[0]?.clientX ?? 0; if (touchStart.current === null || !isFlipped) return; const delta = end - touchStart.current; if (Math.abs(delta) > 65) handleReview(delta > 0 ? "know" : "forgot"); touchStart.current = null; }}>
+                        <div className="flashcard-wrap" onTouchStart={(event) => { const touch = event.changedTouches[0]; touchStart.current = touch ? { x: touch.clientX, y: touch.clientY } : null; }} onTouchEnd={(event) => { const touch = event.changedTouches[0]; const start = touchStart.current; touchStart.current = null; if (!start || !touch || !isFlipped) return; const deltaX = touch.clientX - start.x; const deltaY = touch.clientY - start.y; if (Math.abs(deltaX) > 65 && Math.abs(deltaX) > Math.abs(deltaY) * 1.25) handleReview(deltaX > 0 ? "know" : "forgot"); }} onTouchCancel={() => { touchStart.current = null; }}>
                             <div className={`flashcard ${isFlipped ? "flipped" : ""}`} onClick={() => setIsFlipped((value) => !value)} role="button" tabIndex={0} aria-label={isFlipped ? "Hide answer" : "Reveal answer"} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") setIsFlipped((value) => !value); }}>
                                 <div className="card-face card-front"><div className="card-topline"><span>{currentCard.sourceLanguage}</span><span>{currentCard.state}</span></div><div className="card-word">{currentCard.word}</div><div className="card-hint"><Eye size={14} /> Tap to reveal</div></div>
                                 <div className="card-face card-back"><div className="card-topline"><span>{currentCard.sourceLanguage} → {currentCard.targetLanguage}</span><span>{formatDueIn(currentCard.dueAt, new Date(now))}</span></div><div className="card-word" style={{ flex: "0 0 auto", justifyContent: "start", textAlign: "left", fontSize: "clamp(26px, 4vw, 40px)", margin: "32px 0 22px" }}>{currentCard.word}</div><div className="card-meaning">{currentCard.meaning || "Add a meaning after this review."}</div>{currentCard.exampleSentence && <div className="card-example"><span>Example</span>{currentCard.exampleSentence}</div>}</div>

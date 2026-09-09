@@ -1257,6 +1257,8 @@ select.workspace-picker {
     margin: 0 auto;
     box-shadow: none;
     border: 1px solid var(--line);
+    max-height: none;
+    overflow: visible;
 }
 
 .modal-header {
