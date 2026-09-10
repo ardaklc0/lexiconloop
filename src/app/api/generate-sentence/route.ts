@@ -25,7 +25,7 @@ export async function POST(request: Request) {
 
         const client = new GoogleGenerativeAI(apiKey);
         const model = client.getGenerativeModel({
-            model: "gemini-2.5-flash",
+            model: "gemini-2.5-flash-lite",
             generationConfig: { responseMimeType: "application/json" },
         });
         const prompt = `Create one short, natural ${sourceLanguage || "foreign language"} example sentence using "${word.trim()}". The learner speaks ${targetLanguage || "English"}. Return only valid JSON with keys sentence and translation.`;
