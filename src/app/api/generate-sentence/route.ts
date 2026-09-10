@@ -39,6 +39,9 @@ export async function POST(request: Request) {
         return NextResponse.json({ sentence: parsed.sentence, translation: parsed.translation ?? "" });
     } catch (error) {
         const message = error instanceof Error ? error.message : "Sentence generation failed. Please try again.";
+        if (message.includes("dunning decision") || message.includes("[403 Forbidden]")) {
+            return NextResponse.json({ error: "Gemini sentence generation is unavailable because the Google Cloud billing account linked to this API key needs attention. Check billing and quota settings, then try again." }, { status: 503 });
+        }
         return NextResponse.json({ error: message }, { status: 500 });
     }
 }
