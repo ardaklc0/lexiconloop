@@ -609,6 +609,8 @@ select.workspace-picker {
     padding: 31px;
     display: flex;
     flex-direction: column;
+    min-height: 0;
+    overflow-y: auto;
 }
 
 .card-back {
@@ -654,6 +656,7 @@ select.workspace-picker {
     line-height: 1.12;
     font-family: Fraunces, serif;
     letter-spacing: -.6px;
+    overflow-wrap: anywhere;
 }
 
 .card-example {
@@ -662,6 +665,7 @@ select.workspace-picker {
     color: #5d6f68;
     font-size: 13px;
     line-height: 1.45;
+    overflow-wrap: anywhere;
 }
 
 .card-example span {
