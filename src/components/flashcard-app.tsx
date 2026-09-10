@@ -34,6 +34,12 @@ import type { CardState, Folder, ReviewLog, ReviewRating, WordRecord, Workspace 
 
 type View = "review" | "words" | "folders" | "statistics" | "settings" | "add" | "add-folder";
 type Filter = "all" | CardState;
+type ReviewFilterOption = {
+    value: string;
+    label: string;
+    sourceLanguage?: string;
+    folderId?: string;
+};
 type WordForm = {
     word: string;
     meaning: string;
@@ -117,6 +123,7 @@ export default function FlashcardApp() {
     const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
     const [search, setSearch] = useState("");
     const [filter, setFilter] = useState<Filter>("all");
+    const [reviewFilter, setReviewFilter] = useState("all");
     const [generating, setGenerating] = useState(false);
     const [scanStatus, setScanStatus] = useState("");
     const [form, setForm] = useState<WordForm>({ word: "", meaning: "", exampleSentence: "", folderId: "", sourceLanguage: "German", targetLanguage: "Turkish", notes: "" });
@@ -257,7 +264,21 @@ export default function FlashcardApp() {
         return () => { cancelled = true; };
     }, []);
 
-    const queue = useMemo(() => sortReviewQueue(cards, new Date(now)), [cards, now]);
+    const reviewFilterOptions = useMemo<ReviewFilterOption[]>(() => {
+        const languages = Array.from(new Set(cards.map((card) => card.sourceLanguage).filter(Boolean))).sort();
+        return [
+            { value: "all", label: "All" },
+            ...languages.map((language) => ({ value: `language:${language}`, label: language, sourceLanguage: language })),
+            ...folders.map((folder) => ({ value: `folder:${folder.id}`, label: folder.name, folderId: folder.id })),
+        ];
+    }, [cards, folders]);
+    const selectedReviewFilter = reviewFilterOptions.find((option) => option.value === reviewFilter);
+    const reviewCards = useMemo(() => {
+        if (!selectedReviewFilter?.sourceLanguage && !selectedReviewFilter?.folderId) return cards;
+        if (selectedReviewFilter.sourceLanguage) return cards.filter((card) => card.sourceLanguage === selectedReviewFilter.sourceLanguage);
+        return cards.filter((card) => sameId(card.folderId, selectedReviewFilter.folderId));
+    }, [cards, selectedReviewFilter]);
+    const queue = useMemo(() => sortReviewQueue(reviewCards, new Date(now)), [reviewCards, now]);
     const currentCard = queue[0];
     const dueCount = queue.length;
     const learnedCount = cards.filter((card) => card.state === "mastered").length;
@@ -573,7 +594,15 @@ export default function FlashcardApp() {
                 <section className="review-stage" aria-label="Review session">
                     <div className="stage-head">
                         <span className="eyebrow" style={{ color: "#aec2ba" }}>Today&apos;s review</span>
-                        <div className="stage-progress"><span>{dueCount} cards remaining</span><div className="progress-track"><div className="progress-fill" style={{ width: `${Math.max(7, Math.min(100, ((cards.length - dueCount) / Math.max(cards.length, 1)) * 100))}%` }} /></div></div>
+                        <div className="review-controls">
+                            <label htmlFor="review-filter">Review set</label>
+                            <select id="review-filter" value={selectedReviewFilter?.value ?? "all"} onChange={(event) => { setReviewFilter(event.target.value); setIsFlipped(false); }}>
+                                <option value="all">All</option>
+                                {reviewFilterOptions.some((option) => option.sourceLanguage) && <optgroup label="Source language">{reviewFilterOptions.filter((option) => option.sourceLanguage).map((option) => <option value={option.value} key={option.value}>{option.label}</option>)}</optgroup>}
+                                {reviewFilterOptions.some((option) => option.folderId) && <optgroup label="Folder">{reviewFilterOptions.filter((option) => option.folderId).map((option) => <option value={option.value} key={option.value}>{option.label}</option>)}</optgroup>}
+                            </select>
+                        </div>
+                        <div className="stage-progress"><span>{dueCount} cards remaining</span><div className="progress-track"><div className="progress-fill" style={{ width: `${Math.max(7, Math.min(100, ((reviewCards.length - dueCount) / Math.max(reviewCards.length, 1)) * 100))}%` }} /></div></div>
                     </div>
                     {currentCard ? <>
                         <div className="flashcard-wrap" onTouchStart={(event) => { const touch = event.changedTouches[0]; touchStart.current = touch ? { x: touch.clientX, y: touch.clientY } : null; }} onTouchEnd={(event) => { const touch = event.changedTouches[0]; const start = touchStart.current; touchStart.current = null; if (!start || !touch || !isFlipped) return; const deltaX = touch.clientX - start.x; const deltaY = touch.clientY - start.y; if (Math.abs(deltaX) > 65 && Math.abs(deltaX) > Math.abs(deltaY) * 1.25) handleReview(deltaX > 0 ? "know" : "forgot"); }} onTouchCancel={() => { touchStart.current = null; }}>

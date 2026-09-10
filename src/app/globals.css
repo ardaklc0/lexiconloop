@@ -524,8 +524,35 @@ select.workspace-picker {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 14px;
     color: #aec2ba;
     font-size: 11px;
+}
+
+.review-controls {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin-left: auto;
+}
+
+.review-controls label {
+    white-space: nowrap;
+}
+
+.review-controls select {
+    min-width: 132px;
+    border: 1px solid rgba(255, 255, 255, .2);
+    border-radius: 6px;
+    padding: 6px 24px 6px 8px;
+    background: rgba(255, 255, 255, .08);
+    color: #fff;
+    font-size: 11px;
+}
+
+.review-controls option {
+    color: var(--ink);
+    background: var(--surface);
 }
 
 .stage-progress {
@@ -1408,6 +1435,23 @@ select.workspace-picker {
 
     .review-stage {
         min-height: 520px;
+    }
+
+    .stage-head {
+        align-items: flex-start;
+        flex-wrap: wrap;
+    }
+
+    .review-controls {
+        order: 3;
+        width: 100%;
+        margin-left: 0;
+        justify-content: space-between;
+    }
+
+    .review-controls select {
+        flex: 1;
+        max-width: 220px;
     }
 }
 
