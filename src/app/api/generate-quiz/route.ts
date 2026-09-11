@@ -113,10 +113,48 @@ ${JSON.stringify(cards)}`;
             } satisfies QuizQuestion;
         }).filter((question): question is QuizQuestion => question !== null).slice(0, questionCount) : [];
 
-        if (questions.length < Math.min(3, questionCount)) {
+        const completedQuestions = [...questions];
+        const fallbackCards = cards.filter((card): card is QuizCard & { word: string } => Boolean(card.word?.trim()));
+        let fallbackIndex = 0;
+        while (completedQuestions.length < questionCount && fallbackCards.length >= 4) {
+            const card = fallbackCards[fallbackIndex % fallbackCards.length];
+            fallbackIndex += 1;
+            const answerWord = card.word.trim();
+            const distractors = shuffle(fallbackCards
+                .map((item) => item.word.trim())
+                .filter((word) => normalizeQuizText(word) !== normalizeQuizText(answerWord))
+            ).slice(0, 3);
+            if (distractors.length < 3) break;
+
+            if (card.exampleSentence) {
+                const wordPattern = new RegExp(escapeRegExp(answerWord), "iu");
+                if (wordPattern.test(card.exampleSentence)) {
+                    completedQuestions.push({
+                        type: "fill-blank",
+                        prompt: card.exampleSentence.replace(wordPattern, "_____"),
+                        options: shuffle([answerWord, ...distractors]),
+                        answer: answerWord,
+                        explanation: `${answerWord} means ${card.meaning?.trim() || "the saved meaning"}.`,
+                        word: answerWord,
+                    });
+                    continue;
+                }
+            }
+
+            completedQuestions.push({
+                type: "multiple-choice",
+                prompt: `Which word matches this meaning: "${card.meaning?.trim() || "the saved meaning"}"?`,
+                options: shuffle([answerWord, ...distractors]),
+                answer: answerWord,
+                explanation: `${answerWord} means ${card.meaning?.trim() || "the saved meaning"}.`,
+                word: answerWord,
+            });
+        }
+
+        if (completedQuestions.length < Math.min(3, questionCount)) {
             return NextResponse.json({ error: "Gemini could not create enough quiz questions." }, { status: 502 });
         }
-        return NextResponse.json({ questions });
+        return NextResponse.json({ questions: completedQuestions.slice(0, questionCount) });
     } catch (error) {
         const message = error instanceof Error ? error.message : "Quiz generation failed. Please try again.";
         if (message.includes("dunning decision") || message.includes("[403 Forbidden]")) {
