@@ -631,14 +631,29 @@ select.workspace-picker {
 .card-word {
     min-width: 0;
     max-width: 100%;
-    flex: 1;
+    flex: 0 0 auto;
+    min-height: 150px;
     display: grid;
     place-items: center;
     text-align: center;
-    overflow-wrap: anywhere;
+    overflow-wrap: normal;
+    word-break: normal;
+    hyphens: none;
     font-family: Fraunces, serif;
     font-size: clamp(37px, 6vw, 62px);
     letter-spacing: -2.4px;
+}
+
+.card-word-long {
+    font-size: clamp(27px, 5vw, 44px);
+    letter-spacing: -1px;
+}
+
+.card-word-answer {
+    justify-content: start;
+    text-align: left;
+    min-height: 0;
+    margin: 32px 0 22px;
 }
 
 .card-hint {
@@ -646,6 +661,7 @@ select.workspace-picker {
     justify-content: center;
     align-items: center;
     gap: 7px;
+    flex-shrink: 0;
     color: var(--muted);
     font-size: 11px;
 }
@@ -660,6 +676,7 @@ select.workspace-picker {
 }
 
 .card-example {
+    flex-shrink: 0;
     border-left: 2px solid var(--peach);
     padding-left: 12px;
     color: #5d6f68;
@@ -1571,6 +1588,10 @@ select.workspace-picker {
 
     .card-word {
         font-size: 43px;
+    }
+
+    .card-word-long {
+        font-size: clamp(27px, 8vw, 38px);
     }
 
     .side-stack {
