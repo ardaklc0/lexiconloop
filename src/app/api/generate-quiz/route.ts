@@ -12,6 +12,18 @@ type QuizQuestion = {
     word: string;
 };
 
+type QuizCard = {
+    word?: string;
+    meaning?: string;
+    exampleSentence?: string;
+    sourceLanguage?: string;
+    targetLanguage?: string;
+    cefrLevel?: string;
+};
+
+const normalizeQuizText = (value: string) => value.normalize("NFKC").trim().toLocaleLowerCase();
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 export async function POST(request: Request) {
     const supabase = await createSupabaseServerClient();
     if (supabase) {
@@ -27,7 +39,7 @@ export async function POST(request: Request) {
     }
 
     try {
-        const body = await request.json() as { questionCount?: number; variation?: string; cards?: Array<{ word?: string; meaning?: string; exampleSentence?: string; sourceLanguage?: string; targetLanguage?: string; cefrLevel?: string }> };
+        const body = await request.json() as { questionCount?: number; variation?: string; cards?: QuizCard[] };
         const questionCount = Number.isInteger(body.questionCount) ? Math.min(50, Math.max(1, body.questionCount as number)) : 5;
         const cards = (body.cards ?? []).filter((card) => typeof card.word === "string" && card.word.trim()).slice(0, 100);
         if (!cards.length) {
@@ -42,7 +54,7 @@ export async function POST(request: Request) {
         const prompt = `You are creating a personalized vocabulary quiz.
 Create exactly ${questionCount} questions from the learner's word list below. Use a balanced mix of multiple-choice and fill-blank questions. Do not repeat a word until every word has been used; if more questions are requested than words available, reuse words with a different question format or context. This is quiz variation ${body.variation ?? "fresh"}; write fresh prompts and explanations.
 For multiple-choice questions, create exactly 4 options: one correct answer and three plausible but incorrect distractors.
-For fill-blank questions, use the example sentence and replace the target word or phrase with "_____".
+For fill-blank questions, use one exampleSentence from the word list and replace the exact source-language word or phrase with "_____". The prompt must remain a natural sentence in the source language, and the answer must be that exact source-language word or phrase. Never ask for a translation in a fill-blank question. Never write instructions such as "Use the English word from the list".
 The answer must be the exact word or phrase from the list for fill-blank questions, and the correct option text for multiple-choice questions.
 Keep prompts concise. Return only valid JSON with this exact shape: {"questions":[{"type":"multiple-choice"|"fill-blank","prompt":"...","options":["..."],"answer":"...","explanation":"...","word":"..."}]}.
 
@@ -57,6 +69,20 @@ ${JSON.stringify(cards)}`;
             const options = Array.isArray(question.options) ? question.options.filter((option): option is string => typeof option === "string").slice(0, 4) : undefined;
             if ((question.type !== "multiple-choice" && question.type !== "fill-blank") || typeof question.prompt !== "string" || typeof question.answer !== "string" || typeof question.word !== "string") return null;
             if (question.type === "multiple-choice" && (!options || options.length !== 4)) return null;
+            const card = cards.find((item) => normalizeQuizText(item.word ?? "") === normalizeQuizText(question.word ?? ""));
+            if (!card?.word) return null;
+            if (question.type === "fill-blank") {
+                if (!card.exampleSentence) return null;
+                const wordPattern = new RegExp(escapeRegExp(card.word.trim()), "iu");
+                if (!wordPattern.test(card.exampleSentence)) return null;
+                return {
+                    type: "fill-blank",
+                    prompt: card.exampleSentence.replace(wordPattern, "_____"),
+                    answer: card.word.trim(),
+                    explanation: typeof question.explanation === "string" && question.explanation.trim() ? question.explanation.trim() : `${card.word.trim()} means ${card.meaning?.trim() || "the saved meaning"}.`,
+                    word: card.word.trim(),
+                } satisfies QuizQuestion;
+            }
             return {
                 type: question.type,
                 prompt: question.prompt.trim(),
