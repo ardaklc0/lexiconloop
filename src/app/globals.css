@@ -1019,6 +1019,7 @@ select.workspace-picker {
     align-items: center;
     min-width: 0;
     gap: 8px;
+    padding-right: 36px;
 }
 
 .word-main {
@@ -1032,7 +1033,7 @@ select.workspace-picker {
 .word-title .word-speaker {
     position: absolute;
     top: 50%;
-    right: -48px;
+    right: 0;
     transform: translateY(-50%);
 }
 
