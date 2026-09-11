@@ -1,5 +1,5 @@
 export type CardState = "new" | "learning" | "review" | "mastered";
-export type ReviewRating = "forgot" | "know";
+export type ReviewRating = "forgot" | "hard" | "good" | "easy";
 export type CefrLevel = "A1" | "A2" | "B1" | "B2" | "C1";
 
 export type WordRecord = {

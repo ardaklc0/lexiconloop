@@ -25,9 +25,13 @@ export const calculateNextReview = (
 ): ReviewResult => {
     const isFirstReview = card.reps === 0;
     const previousStability = Math.max(card.stability, 0.25);
-    const nextDifficulty = rating === "know"
-        ? Math.max(1, card.difficulty - 0.15)
-        : Math.min(10, card.difficulty + 0.6);
+    const nextDifficulty = rating === "forgot"
+        ? Math.min(10, card.difficulty + 0.6)
+        : rating === "hard"
+            ? Math.min(10, card.difficulty + 0.25)
+            : rating === "easy"
+                ? Math.max(1, card.difficulty - 0.3)
+                : Math.max(1, card.difficulty - 0.15);
 
     if (rating === "forgot") {
         return {
@@ -41,9 +45,11 @@ export const calculateNextReview = (
         };
     }
 
+    const firstReviewStability = rating === "easy" ? 4 : rating === "hard" ? 0.25 : 1;
+    const stabilityMultiplier = rating === "easy" ? 2.4 : rating === "hard" ? 1.2 : 1.75;
     const nextStability = isFirstReview
-        ? 1
-        : Math.min(365, previousStability * (1.75 - nextDifficulty * 0.045));
+        ? firstReviewStability
+        : Math.min(365, previousStability * (stabilityMultiplier - nextDifficulty * (rating === "easy" ? 0.03 : 0.045)));
     const nextState = nextStability >= 21 ? "mastered" : "review";
 
     return {

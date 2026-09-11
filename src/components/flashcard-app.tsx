@@ -33,7 +33,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { deleteFolder, deleteWord, deleteWorkspace, insertFolder, insertWord, insertWorkspace, loadUserData, loadWorkspaces, saveReview, updateFolder, updateWord } from "@/lib/supabase/data";
 import type { CardState, CefrLevel, Folder, ReviewLog, ReviewRating, WordRecord, Workspace } from "@/lib/types";
 
-type View = "review" | "words" | "folders" | "statistics" | "settings" | "add" | "add-folder";
+type View = "review" | "words" | "folders" | "statistics" | "settings" | "add" | "add-folder" | "word-detail";
 type Filter = "all" | CardState;
 type ReviewFilterOption = {
     value: string;
@@ -78,6 +78,7 @@ const titleForView: Record<View, string> = {
     settings: "Your preferences",
     add: "Add a word",
     "add-folder": "New folder",
+    "word-detail": "Word details",
 };
 
 const subtitleForView: Record<View, string> = {
@@ -88,6 +89,7 @@ const subtitleForView: Record<View, string> = {
     folders: "Keep related words close together.",
     statistics: "Small repetitions become visible over time.",
     settings: "Make the rhythm fit your day.",
+    "word-detail": "A closer look at this word.",
 };
 
 const makeId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -135,6 +137,8 @@ export default function FlashcardApp() {
     const [workspaceId, setWorkspaceId] = useState("");
     const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
     const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
+    const [selectedWordId, setSelectedWordId] = useState<string | null>(null);
+    const [detailReturnView, setDetailReturnView] = useState<View>("words");
     const [search, setSearch] = useState("");
     const [filter, setFilter] = useState<Filter>("all");
     const [reviewFilter, setReviewFilter] = useState("all");
@@ -358,8 +362,11 @@ export default function FlashcardApp() {
                 event.preventDefault();
                 if (currentCard) setIsFlipped((value) => !value);
             }
-            if (event.key === "ArrowLeft" && isFlipped) handleReview("forgot");
-            if (event.key === "ArrowRight" && isFlipped) handleReview("know");
+            if (!isFlipped) return;
+            if (event.key === "1" || event.key === "ArrowLeft") handleReview("forgot");
+            if (event.key === "2") handleReview("hard");
+            if (event.key === "3" || event.key === "ArrowRight") handleReview("good");
+            if (event.key === "4") handleReview("easy");
         };
         window.addEventListener("keydown", handleKey);
         return () => window.removeEventListener("keydown", handleKey);
@@ -376,6 +383,7 @@ export default function FlashcardApp() {
     }, [activeView, now]);
 
     function openAddModal() {
+        setSelectedWordId(null);
         setEditingWordId(null);
         setForm((previous) => ({ word: "", meaning: "", exampleSentence: "", folderId: previous.folderId || folders[0]?.id || "", sourceLanguage: previous.sourceLanguage, targetLanguage: previous.targetLanguage, cefrLevel: "", notes: "" }));
         setGenerationStatus("");
@@ -389,6 +397,12 @@ export default function FlashcardApp() {
         setGenerationStatus("");
         setReturnView(activeView === "add" ? returnView : activeView);
         setActiveView("add");
+    }
+
+    function openWordDetail(card: WordRecord, fromView: View = activeView) {
+        setSelectedWordId(card.id);
+        setDetailReturnView(fromView === "word-detail" ? detailReturnView : fromView);
+        setActiveView("words");
     }
 
     async function addWord(event: React.FormEvent<HTMLFormElement>) {
@@ -693,14 +707,14 @@ export default function FlashcardApp() {
                         <div className="stage-progress"><span>{dueCount} cards remaining</span><div className="progress-track"><div className="progress-fill" style={{ width: `${Math.max(7, Math.min(100, ((reviewCards.length - dueCount) / Math.max(reviewCards.length, 1)) * 100))}%` }} /></div></div>
                     </div>
                     {currentCard ? <>
-                        <div className="flashcard-wrap" onTouchStart={(event) => { const touch = event.changedTouches[0]; touchStart.current = touch ? { x: touch.clientX, y: touch.clientY } : null; }} onTouchEnd={(event) => { const touch = event.changedTouches[0]; const start = touchStart.current; touchStart.current = null; if (!start || !touch || !isFlipped) return; const deltaX = touch.clientX - start.x; const deltaY = touch.clientY - start.y; if (Math.abs(deltaX) > 65 && Math.abs(deltaX) > Math.abs(deltaY) * 1.25) handleReview(deltaX > 0 ? "know" : "forgot"); }} onTouchCancel={() => { touchStart.current = null; }}>
+                        <div className="flashcard-wrap" onTouchStart={(event) => { const touch = event.changedTouches[0]; touchStart.current = touch ? { x: touch.clientX, y: touch.clientY } : null; }} onTouchEnd={(event) => { const touch = event.changedTouches[0]; const start = touchStart.current; touchStart.current = null; if (!start || !touch || !isFlipped) return; const deltaX = touch.clientX - start.x; const deltaY = touch.clientY - start.y; if (Math.abs(deltaX) > 65 && Math.abs(deltaX) > Math.abs(deltaY) * 1.25) handleReview(deltaX > 0 ? "good" : "forgot"); }} onTouchCancel={() => { touchStart.current = null; }}>
                             <div className={`flashcard ${isFlipped ? "flipped" : ""}`} onClick={() => setIsFlipped((value) => !value)} role="button" tabIndex={0} aria-label={isFlipped ? "Hide answer" : "Reveal answer"} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") setIsFlipped((value) => !value); }}>
                                 <div className="card-face card-front"><div className="card-topline"><span>{currentCard.sourceLanguage}</span><span>{currentCard.cefrLevel ? `${currentCard.cefrLevel} · ` : ""}{currentCard.state}</span></div><div className="card-word-row"><div className={`card-word ${currentCard.word.length > 16 ? "card-word-long" : ""}`}>{currentCard.word}</div><button type="button" className="speaker-button" aria-label={`Pronounce ${currentCard.word}`} onClick={(event) => { event.stopPropagation(); speakWord(currentCard.word, currentCard.sourceLanguage); }}><Volume2 size={19} /></button></div>{currentCard.exampleSentence && <div className="card-example"><span>Example</span>{currentCard.exampleSentence}</div>}<div className="card-hint"><Eye size={14} /> Tap to reveal</div></div>
                                 <div className="card-face card-back"><div className="card-topline"><span>{currentCard.sourceLanguage} → {currentCard.targetLanguage}</span><span>{currentCard.cefrLevel ? `${currentCard.cefrLevel} · ` : ""}{formatDueIn(currentCard.dueAt, new Date(now))}</span></div><div className="card-word-row card-word-row-answer"><div className={`card-word card-word-answer ${currentCard.word.length > 16 ? "card-word-long" : ""}`}>{currentCard.word}</div><button type="button" className="speaker-button" aria-label={`Pronounce ${currentCard.word}`} onClick={(event) => { event.stopPropagation(); speakWord(currentCard.word, currentCard.sourceLanguage); }}><Volume2 size={19} /></button></div><div className="card-meaning">{currentCard.meaning || "Add a meaning after this review."}</div>{currentCard.exampleSentence && <div className="card-example"><span>Example</span>{currentCard.exampleSentence}</div>}</div>
                             </div>
                         </div>
-                        <div className="stage-actions"><button className="review-action" disabled={!isFlipped} onClick={() => handleReview("forgot")}><ArrowLeft size={16} /> Didn&apos;t know</button><button className="review-action know" disabled={!isFlipped} onClick={() => handleReview("know")}>I knew it <ArrowRight size={16} /></button></div>
-                        <div className="stage-footnote"><Keyboard size={12} style={{ verticalAlign: "-2px", marginRight: 4 }} /> Space to reveal · ← forgot · → knew</div>
+                        <div className="stage-actions review-rating-actions"><button className="review-action forgot" disabled={!isFlipped} onClick={() => handleReview("forgot")}><ArrowLeft size={15} /> Forgot</button><button className="review-action hard" disabled={!isFlipped} onClick={() => handleReview("hard")}><Clock3 size={15} /> Hard</button><button className="review-action good" disabled={!isFlipped} onClick={() => handleReview("good")}><Check size={15} /> Good</button><button className="review-action easy" disabled={!isFlipped} onClick={() => handleReview("easy")}><Sparkles size={15} /> Easy</button></div>
+                        <div className="stage-footnote"><Keyboard size={12} style={{ verticalAlign: "-2px", marginRight: 4 }} /> Space to reveal · 1 Forgot · 2 Hard · 3 Good · 4 Easy</div>
                     </> : <div className="empty-stage"><div><Check size={34} /><h2>All clear for now.</h2><p>Your next cards will appear here when they are due. A quiet win.</p><button className="primary-button" style={{ marginTop: 22 }} onClick={() => setActiveView("words")}>Browse words <ArrowRight size={14} /></button></div></div>}
                 </section>
                 <div className="side-stack"><section className="surface-panel"><div className="panel-heading"><h2>Today</h2><button onClick={() => setActiveView("statistics")}>See stats</button></div><div className="stat-row"><span className="stat-label"><span className="dot-icon dot-sage" />Reviews</span><strong className="stat-value">{todayLogs.length}</strong></div><div className="stat-row"><span className="stat-label"><span className="dot-icon dot-peach" />Due now</span><strong className="stat-value">{dueCount}</strong></div><div className="stat-row"><span className="stat-label"><span className="dot-icon dot-yellow" />Learned</span><strong className="stat-value">{learnedCount}</strong></div></section><section className="surface-panel streak-panel"><div className="streak-icon"><Flame size={21} /></div><div><strong>{calculateStreak(logs)} days</strong><span>Current learning streak</span></div></section><section className="surface-panel"><div className="panel-heading"><h2>Review rhythm</h2><Clock3 size={16} color="var(--muted)" /></div><p style={{ margin: 0, color: "var(--muted)", fontSize: 12, lineHeight: 1.6 }}>Two short sessions a day beat one heroic session a week. Your next card is waiting.</p></section></div>
@@ -708,15 +722,29 @@ export default function FlashcardApp() {
         );
     }
 
+    function renderWordDetail() {
+        const card = cards.find((item) => item.id === selectedWordId);
+        if (!card) {
+            return <section className="surface-panel"><p className="stats-empty">This word is no longer available.</p><button className="ghost-button" onClick={() => { setSelectedWordId(null); setActiveView(detailReturnView); }}>Back</button></section>;
+        }
+        const wordLogs = logs.filter((log) => log.wordId === card.id).sort((first, second) => new Date(second.reviewedAt).getTime() - new Date(first.reviewedAt).getTime());
+        const successfulReviews = wordLogs.filter((log) => log.rating !== "forgot").length;
+        const successRate = wordLogs.length ? Math.round((successfulReviews / wordLogs.length) * 100) : 0;
+        const folderName = folders.find((folder) => sameId(folder.id, card.folderId))?.name ?? "Unsorted";
+        const ratingLabels: Record<ReviewRating, string> = { forgot: "Forgot", hard: "Hard", good: "Good", easy: "Easy" };
+        return <section className="word-detail-page"><button className="ghost-button" onClick={() => { setSelectedWordId(null); setActiveView(detailReturnView); }}><ArrowLeft size={14} /> Back</button><div className="word-detail-hero surface-panel"><div><div className="eyebrow">{card.sourceLanguage} · {folderName}</div><h2>{card.word}</h2><p>{card.meaning || "Meaning to be added"}</p></div><button type="button" className="speaker-button detail-speaker" onClick={() => speakWord(card.word, card.sourceLanguage)} aria-label={`Pronounce ${card.word}`}><Volume2 size={19} /></button></div><div className="word-detail-grid"><section className="surface-panel"><div className="panel-heading"><h2>Progress</h2><BarChart3 size={17} color="var(--sage)" /></div><div className="detail-stat-list"><div><span>Success rate</span><strong>{wordLogs.length ? `${successRate}%` : "No reviews yet"}</strong></div><div><span>Reviews</span><strong>{wordLogs.length}</strong></div><div><span>Next review</span><strong>{formatDueIn(card.dueAt, new Date(now))}</strong></div><div><span>Current state</span><strong>{card.state}</strong></div></div></section><section className="surface-panel"><div className="panel-heading"><h2>Context</h2><Pencil size={16} color="var(--sage)" /></div><div className="detail-copy"><div><span className="mono-label">Example sentence</span><p>{card.exampleSentence || "No example sentence yet."}</p></div><div><span className="mono-label">Notes</span><p>{card.notes || "No notes yet."}</p></div></div></section></div><section className="surface-panel"><div className="panel-heading"><div><h2>Review history</h2><p className="panel-subtitle">Your recent attempts with this word</p></div><button className="ghost-button detail-edit-button" onClick={() => openEditWord(card)}><Pencil size={14} /> Edit word</button></div>{wordLogs.length ? <div className="review-history">{wordLogs.map((log) => <div className="review-history-row" key={log.id}><span>{new Date(log.reviewedAt).toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" })}</span><strong className={`history-rating ${log.rating}`}>{ratingLabels[log.rating]}</strong></div>)}</div> : <p className="stats-empty">Review this word to start building its history.</p>}</section></section>;
+    }
+
     function renderWords() {
-        return <><div className="view-toolbar"><div className="search-box"><Search size={15} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search vocabulary..." /></div><div className="filter-row">{(["all", "new", "learning", "review", "mastered"] as Filter[]).map((item) => <button className={`filter-chip ${filter === item ? "active" : ""}`} key={item} onClick={() => setFilter(item)}>{item === "all" ? "All" : item[0].toUpperCase() + item.slice(1)}</button>)}</div></div><div className="word-list">{visibleCards.length ? visibleCards.map((card) => <div className="word-row" key={card.id}><div className="word-main"><div className="word-title"><strong>{card.word}</strong></div><span>{card.meaning || "Meaning to be added"}</span></div><div className="word-folder">{folders.find((folder) => folder.id === card.folderId)?.name ?? "Unsorted"}</div><div><span className={`state-tag state-${card.state}`}>{card.state}</span></div><div className="word-due">{formatDueIn(card.dueAt, new Date(now))}</div><div className="row-actions"><button type="button" className="speaker-button word-speaker" onClick={(event) => { event.stopPropagation(); speakWord(card.word, card.sourceLanguage); }} aria-label={`Pronounce ${card.word}`}><Volume2 size={15} /></button><button className="icon-button" onClick={() => openEditWord(card)} aria-label={`Edit ${card.word}`}><Pencil size={14} /></button><button className="icon-button danger-button" onClick={() => void removeWord(card)} aria-label={`Delete ${card.word}`}><Trash2 size={14} /></button></div></div>) : <div className="no-results">No words match that search.</div>}</div></>;
+        if (selectedWordId) return renderWordDetail();
+        return <><div className="view-toolbar"><div className="search-box"><Search size={15} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search vocabulary..." /></div><div className="filter-row">{(["all", "new", "learning", "review", "mastered"] as Filter[]).map((item) => <button className={`filter-chip ${filter === item ? "active" : ""}`} key={item} onClick={() => setFilter(item)}>{item === "all" ? "All" : item[0].toUpperCase() + item.slice(1)}</button>)}</div></div><div className="word-list">{visibleCards.length ? visibleCards.map((card) => <div className="word-row" key={card.id}><div className="word-main"><button type="button" className="word-title word-title-button" onClick={() => openWordDetail(card)}><strong>{card.word}</strong></button><span>{card.meaning || "Meaning to be added"}</span></div><div className="word-folder">{folders.find((folder) => folder.id === card.folderId)?.name ?? "Unsorted"}</div><div><span className={`state-tag state-${card.state}`}>{card.state}</span></div><div className="word-due">{formatDueIn(card.dueAt, new Date(now))}</div><div className="row-actions"><button type="button" className="speaker-button word-speaker" onClick={(event) => { event.stopPropagation(); speakWord(card.word, card.sourceLanguage); }} aria-label={`Pronounce ${card.word}`}><Volume2 size={15} /></button><button className="icon-button" onClick={() => openEditWord(card)} aria-label={`Edit ${card.word}`}><Pencil size={14} /></button><button className="icon-button danger-button" onClick={() => void removeWord(card)} aria-label={`Delete ${card.word}`}><Trash2 size={14} /></button></div></div>) : <div className="no-results">No words match that search.</div>}</div></>;
     }
 
     function renderFolders() {
         const selectedFolder = folders.find((folder) => folder.id === selectedFolderId);
         if (selectedFolder) {
             const selectedCards = getFolderCards(selectedFolder.id);
-            return <section className="folder-detail"><button className="ghost-button" onClick={() => setSelectedFolderId(null)}><ArrowLeft size={14} /> All folders</button><div className="folder-detail-header"><div className="folder-color" style={{ background: selectedFolder.color }} /><div><div className="eyebrow">Folder</div><h2>{selectedFolder.name}</h2><p>{selectedFolder.description}</p></div></div><div className="folder-detail-list">{selectedCards.length ? selectedCards.map((card) => <div className="word-row" key={card.id}><div className="word-main"><div className="word-title"><strong>{card.word}</strong></div><span>{card.meaning || "Meaning to be added"}</span></div><span className={`state-tag state-${card.state}`}>{card.state}</span><div className="row-actions"><button type="button" className="speaker-button word-speaker" onClick={(event) => { event.stopPropagation(); speakWord(card.word, card.sourceLanguage); }} aria-label={`Pronounce ${card.word}`}><Volume2 size={15} /></button><button className="icon-button" onClick={() => openEditWord(card)} aria-label={`Edit ${card.word}`}><Pencil size={14} /></button><button className="icon-button danger-button" onClick={() => void removeWord(card)} aria-label={`Delete ${card.word}`}><Trash2 size={14} /></button></div></div>) : <div className="no-results">No words in this folder yet.</div>}</div></section>;
+            return <section className="folder-detail"><button className="ghost-button" onClick={() => setSelectedFolderId(null)}><ArrowLeft size={14} /> All folders</button><div className="folder-detail-header"><div className="folder-color" style={{ background: selectedFolder.color }} /><div><div className="eyebrow">Folder</div><h2>{selectedFolder.name}</h2><p>{selectedFolder.description}</p></div></div><div className="folder-detail-list">{selectedCards.length ? selectedCards.map((card) => <div className="word-row" key={card.id}><div className="word-main"><button type="button" className="word-title word-title-button" onClick={() => openWordDetail(card)}><strong>{card.word}</strong></button><span>{card.meaning || "Meaning to be added"}</span></div><span className={`state-tag state-${card.state}`}>{card.state}</span><div className="row-actions"><button type="button" className="speaker-button word-speaker" onClick={(event) => { event.stopPropagation(); speakWord(card.word, card.sourceLanguage); }} aria-label={`Pronounce ${card.word}`}><Volume2 size={15} /></button><button className="icon-button" onClick={() => openEditWord(card)} aria-label={`Edit ${card.word}`}><Pencil size={14} /></button><button className="icon-button danger-button" onClick={() => void removeWord(card)} aria-label={`Delete ${card.word}`}><Trash2 size={14} /></button></div></div>) : <div className="no-results">No words in this folder yet.</div>}</div></section>;
         }
         return <div className="folder-grid">{folders.map((folder) => { const folderCards = getFolderCards(folder.id); const due = folderCards.filter((card) => new Date(card.dueAt).getTime() <= now).length; return <div className="folder-card" key={folder.id} onClick={(event) => { if ((event.target as HTMLElement).closest("button")) return; setSelectedFolderId(folder.id); }}><div className="folder-card-top"><div className="folder-color" style={{ background: folder.color }} /><div className="row-actions"><button className="icon-button" onClick={() => openEditFolder(folder)} aria-label={`Edit ${folder.name}`}><Pencil size={14} /></button><button className="icon-button danger-button" onClick={() => void removeFolder(folder)} aria-label={`Delete ${folder.name}`}><Trash2 size={14} /></button></div></div><h3>{folder.name}</h3><p>{folder.description}</p><div className="folder-meta"><span>{folderCards.length} {folderCards.length === 1 ? "word" : "words"}</span><span>{due} due</span></div></div> })}<button className="folder-card" onClick={addFolder} style={{ borderStyle: "dashed", alignItems: "center", justifyContent: "center", color: "var(--sage)" }}><CirclePlus size={22} /><span style={{ marginTop: 10, fontSize: 12, fontWeight: 700 }}>New folder</span></button></div>;
     }
@@ -730,13 +758,13 @@ export default function FlashcardApp() {
         weekStart.setHours(0, 0, 0, 0);
         weekStart.setDate(weekStart.getDate() - 6);
         const weeklyLogs = logs.filter((log) => new Date(log.reviewedAt).getTime() >= weekStart.getTime());
-        const knownReviews = logs.filter((log) => log.rating === "know").length;
+        const knownReviews = logs.filter((log) => log.rating !== "forgot").length;
         const accuracy = logs.length ? Math.round((knownReviews / logs.length) * 100) : 0;
         const cardById = new Map(cards.map((card) => [card.id, card]));
         const statsForCards = (groupCards: WordRecord[]) => {
             const groupIds = new Set(groupCards.map((card) => card.id));
             const groupLogs = logs.filter((log) => groupIds.has(log.wordId));
-            const remembered = groupLogs.filter((log) => log.rating === "know").length;
+            const remembered = groupLogs.filter((log) => log.rating !== "forgot").length;
             return {
                 reviewed: groupLogs.length,
                 accuracy: groupLogs.length ? Math.round((remembered / groupLogs.length) * 100) : 0,
@@ -773,7 +801,7 @@ export default function FlashcardApp() {
         const retentionRate = reviewedCardIds.size ? Math.round((retainedCards.length / reviewedCardIds.size) * 100) : 0;
         const recentStart = new Date(now);
         recentStart.setDate(recentStart.getDate() - 29);
-        const recentKnownLogs = logs.filter((log) => log.rating === "know" && new Date(log.reviewedAt).getTime() >= recentStart.getTime());
+        const recentKnownLogs = logs.filter((log) => log.rating !== "forgot" && new Date(log.reviewedAt).getTime() >= recentStart.getTime());
         const activeRecentDays = new Set(recentKnownLogs.map((log) => new Date(log.reviewedAt).toDateString())).size;
         const successfulReviewsPerDay = recentKnownLogs.length / Math.max(activeRecentDays, 1);
         const unfinishedCount = cards.filter((card) => card.state !== "mastered").length;
@@ -829,7 +857,7 @@ export default function FlashcardApp() {
     }
 
     function renderSettings() {
-        return <section className="surface-panel"><div className="panel-heading"><h2>Learning setup</h2><ShieldCheck size={17} color="var(--sage)" /></div><div className="settings-list"><div className="setting-row"><div className="setting-copy"><strong>Workspace</strong><span>Switch your learning shelf.</span></div><div className="setting-control"><select value={workspace} onChange={(event) => void switchWorkspace(event.target.value)}>{(cloudMode ? workspaces.map((item) => item.name) : ["Arda's notebook", "Travel words", "Reading shelf"]).map((item) => <option key={item}>{item}</option>)}</select><button className="icon-button" onClick={() => void addWorkspace()} aria-label="Create workspace"><CirclePlus size={15} /></button></div></div><div className="setting-row"><div className="setting-copy"><strong>New cards per day</strong><span>Keep the first step light.</span></div><select defaultValue="20"><option>10</option><option>20</option><option>30</option></select></div><div className="setting-row"><div className="setting-copy"><strong>Dark mode</strong><span>Use a lower-light palette.</span></div><button className={`toggle ${darkMode ? "on" : ""}`} onClick={() => setDarkMode((value) => !value)} aria-label="Toggle dark mode"><i /></button></div><div className="setting-row"><div className="setting-copy"><strong>Sync status</strong><span>{syncStatus || (cloudMode ? "Connected to Supabase" : "Local demo mode")}</span></div><span className="state-tag state-review">{cloudMode ? "Cloud" : "Local"}</span></div><div className="setting-row"><div className="setting-copy"><strong>Keyboard shortcuts</strong><span>Reveal with Space, rate with arrows.</span></div><Keyboard size={18} color="var(--muted)" /></div><div className="setting-row"><div className="setting-copy"><strong>Account</strong><span>Sign out from this workspace.</span></div><button className="ghost-button" onClick={() => void signOut()}><LogOut size={14} /> Sign out</button></div></div></section>;
+        return <section className="surface-panel"><div className="panel-heading"><h2>Learning setup</h2><ShieldCheck size={17} color="var(--sage)" /></div><div className="settings-list"><div className="setting-row"><div className="setting-copy"><strong>Workspace</strong><span>Switch your learning shelf.</span></div><div className="setting-control"><select value={workspace} onChange={(event) => void switchWorkspace(event.target.value)}>{(cloudMode ? workspaces.map((item) => item.name) : ["Arda's notebook", "Travel words", "Reading shelf"]).map((item) => <option key={item}>{item}</option>)}</select><button className="icon-button" onClick={() => void addWorkspace()} aria-label="Create workspace"><CirclePlus size={15} /></button></div></div><div className="setting-row"><div className="setting-copy"><strong>New cards per day</strong><span>Keep the first step light.</span></div><select defaultValue="20"><option>10</option><option>20</option><option>30</option></select></div><div className="setting-row"><div className="setting-copy"><strong>Dark mode</strong><span>Use a lower-light palette.</span></div><button className={`toggle ${darkMode ? "on" : ""}`} onClick={() => setDarkMode((value) => !value)} aria-label="Toggle dark mode"><i /></button></div><div className="setting-row"><div className="setting-copy"><strong>Sync status</strong><span>{syncStatus || (cloudMode ? "Connected to Supabase" : "Local demo mode")}</span></div><span className="state-tag state-review">{cloudMode ? "Cloud" : "Local"}</span></div><div className="setting-row"><div className="setting-copy"><strong>Keyboard shortcuts</strong><span>Reveal with Space, rate with 1-4.</span></div><Keyboard size={18} color="var(--muted)" /></div><div className="setting-row"><div className="setting-copy"><strong>Account</strong><span>Sign out from this workspace.</span></div><button className="ghost-button" onClick={() => void signOut()}><LogOut size={14} /> Sign out</button></div></div></section>;
     }
 
     return <div className="app-shell"><aside className="sidebar"><div className="brand"><div className="brand-mark"><BookOpenCheck size={17} /></div><span className="brand-name">Lexicon Loop</span></div><div className="workspace-label">Workspace</div><div className="workspace-picker"><span className="workspace-dot" /><span style={{ flex: 1 }}>Arda&apos;s notebook</span><ChevronDown size={14} color="var(--muted)" /></div><nav className="nav-group" aria-label="Main navigation">{navItems.map(({ id, label, icon: Icon }) => <button className={`nav-button ${activeView === id ? "active" : ""}`} key={id} onClick={() => { setActiveView(id); setIsFlipped(false); }}><Icon size={16} />{label}{id === "review" && dueCount > 0 && <span className="nav-count">{dueCount}</span>}</button>)}<button className={`nav-button ${activeView === "settings" ? "active" : ""}`} onClick={() => setActiveView("settings")}><Settings2 size={16} />Settings</button></nav><div className="sidebar-spacer" /><div className="sidebar-profile"><div className="avatar">AK</div><div className="profile-copy"><strong>Arda Kaya</strong><span>Free workspace</span></div><Menu size={16} color="var(--muted)" /></div></aside><div className="main-area"><div className="topbar-mobile"><div className="mobile-brand"><div className="brand-mark"><BookOpenCheck size={15} /></div>Lexicon Loop</div><button className="icon-button" onClick={openAddModal} aria-label="Add word"><CirclePlus size={18} /></button></div><main className="page-wrap">{activeView !== "add" && activeView !== "add-folder" && <header className="page-header"><div><div className="eyebrow">{activeView === "review" ? "Tuesday · 08 September 2026" : "Your library"}</div><h1>{titleForView[activeView]}</h1><p>{subtitleForView[activeView]}</p></div><div className="header-actions"><button className="icon-button" aria-label="Search" onClick={() => setActiveView("words")}><Search size={17} /></button><button className="primary-button" onClick={openAddModal}><CirclePlus size={16} /> Add word</button></div></header>}{activeView === "review" && renderReview()}{activeView === "words" && renderWords()}{activeView === "folders" && renderFolders()}{activeView === "statistics" && renderStatistics()}{activeView === "settings" && renderSettings()}{activeView === "add" && renderAddWord()}{activeView === "add-folder" && renderAddFolder()}</main></div><nav className="mobile-nav" aria-label="Mobile navigation">{navItems.map(({ id, label, icon: Icon }) => <button key={id} className={activeView === id ? "active" : ""} onClick={() => setActiveView(id)}><Icon size={18} /><span>{label}</span></button>)}<button className="add-mobile" onClick={openAddModal}><span><CirclePlus size={17} /></span><small>Add</small></button></nav></div>;
