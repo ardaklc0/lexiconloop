@@ -706,6 +706,10 @@ select.workspace-picker {
     right: 22px;
 }
 
+.flashcard.flipped>.card-speaker {
+    transform: rotateY(180deg);
+}
+
 .card-word-long {
     font-size: clamp(24px, 4.5vw, 40px);
     letter-spacing: -1px;
