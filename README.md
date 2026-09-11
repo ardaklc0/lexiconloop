@@ -37,4 +37,4 @@ After changing `.env` or `.env.local`, stop and restart `npm.cmd run dev`; Next.
 - Rate with buttons, ArrowLeft/ArrowRight, or a mobile swipe.
 - First success schedules the next review for one day; later reviews expand with a lightweight FSRS-inspired scheduler.
 - Failed cards return in ten minutes.
-- Add words, optional meanings/examples, Gemini generation with CEFR estimation, folders, search, filters, statistics, settings, responsive navigation, and PWA metadata.
+- Add words, optional meanings/examples, Gemini generation with CEFR estimation, personalized quizzes with multiple-choice distractors and fill-in-the-blank questions, folders, search, filters, statistics, settings, responsive navigation, and PWA metadata.

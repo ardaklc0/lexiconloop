@@ -1,0 +1,80 @@
+import { NextResponse } from "next/server";
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { isAllowedEmail } from "@/lib/auth-allowlist";
+
+type QuizQuestion = {
+    type: "multiple-choice" | "fill-blank";
+    prompt: string;
+    options?: string[];
+    answer: string;
+    explanation: string;
+    word: string;
+};
+
+export async function POST(request: Request) {
+    const supabase = await createSupabaseServerClient();
+    if (supabase) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user || !isAllowedEmail(user.email)) {
+            return NextResponse.json({ error: "You must be signed in with an allowed account." }, { status: 401 });
+        }
+    }
+
+    const apiKey = process.env.GEMINI_API_KEY?.trim() || process.env.GOOGLE_GEMINI_API_KEY?.trim();
+    if (!apiKey) {
+        return NextResponse.json({ error: "Gemini is not configured yet." }, { status: 503 });
+    }
+
+    try {
+        const body = await request.json() as { cards?: Array<{ word?: string; meaning?: string; exampleSentence?: string; sourceLanguage?: string; targetLanguage?: string; cefrLevel?: string }> };
+        const cards = (body.cards ?? []).filter((card) => typeof card.word === "string" && card.word.trim()).slice(0, 8);
+        if (!cards.length) {
+            return NextResponse.json({ error: "Add a few words before starting a quiz." }, { status: 400 });
+        }
+
+        const client = new GoogleGenerativeAI(apiKey);
+        const model = client.getGenerativeModel({
+            model: "gemini-2.5-flash-lite",
+            generationConfig: { responseMimeType: "application/json", temperature: 0.35 },
+        });
+        const prompt = `You are creating a personalized vocabulary quiz.
+Create exactly 5 questions from the learner's word list below. Use a balanced mix of multiple-choice and fill-blank questions.
+For multiple-choice questions, create exactly 4 options: one correct answer and three plausible but incorrect distractors.
+For fill-blank questions, use the example sentence and replace the target word or phrase with "_____".
+The answer must be the exact word or phrase from the list for fill-blank questions, and the correct option text for multiple-choice questions.
+Keep prompts concise. Return only valid JSON with this exact shape: {"questions":[{"type":"multiple-choice"|"fill-blank","prompt":"...","options":["..."],"answer":"...","explanation":"...","word":"..."}]}.
+
+WORD LIST:
+${JSON.stringify(cards)}`;
+        const result = await model.generateContent(prompt);
+        const text = result.response.text().replace(/^```(?:json)?\s*|\s*```$/gi, "").trim();
+        const parsed = JSON.parse(text) as { questions?: unknown };
+        const questions = Array.isArray(parsed.questions) ? parsed.questions.map((item) => {
+            if (!item || typeof item !== "object") return null;
+            const question = item as Partial<QuizQuestion>;
+            const options = Array.isArray(question.options) ? question.options.filter((option): option is string => typeof option === "string").slice(0, 4) : undefined;
+            if ((question.type !== "multiple-choice" && question.type !== "fill-blank") || typeof question.prompt !== "string" || typeof question.answer !== "string" || typeof question.word !== "string") return null;
+            if (question.type === "multiple-choice" && (!options || options.length !== 4)) return null;
+            return {
+                type: question.type,
+                prompt: question.prompt.trim(),
+                ...(options ? { options } : {}),
+                answer: question.answer.trim(),
+                explanation: typeof question.explanation === "string" ? question.explanation.trim() : "",
+                word: question.word.trim(),
+            } satisfies QuizQuestion;
+        }).filter((question): question is QuizQuestion => Boolean(question)).slice(0, 5) : [];
+
+        if (questions.length < 3) {
+            return NextResponse.json({ error: "Gemini could not create enough quiz questions." }, { status: 502 });
+        }
+        return NextResponse.json({ questions });
+    } catch (error) {
+        const message = error instanceof Error ? error.message : "Quiz generation failed. Please try again.";
+        if (message.includes("dunning decision") || message.includes("[403 Forbidden]")) {
+            return NextResponse.json({ error: "Gemini quiz generation is unavailable because the Google Cloud billing account linked to this API key needs attention." }, { status: 503 });
+        }
+        return NextResponse.json({ error: message }, { status: 500 });
+    }
+}

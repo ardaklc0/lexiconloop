@@ -15,6 +15,7 @@ import {
     FolderOpen,
     Keyboard,
     Languages,
+    ListChecks,
     LogOut,
     Menu,
     Pencil,
@@ -48,6 +49,14 @@ type WordForm = {
     targetLanguage: string;
     cefrLevel: CefrLevel | "";
     notes: string;
+};
+type QuizQuestion = {
+    type: "multiple-choice" | "fill-blank";
+    prompt: string;
+    options?: string[];
+    answer: string;
+    explanation: string;
+    word: string;
 };
 
 const languageOptions = ["German", "Turkish", "English", "French"];
@@ -127,6 +136,13 @@ export default function FlashcardApp() {
     const [reviewFilter, setReviewFilter] = useState("all");
     const [generating, setGenerating] = useState(false);
     const [generationStatus, setGenerationStatus] = useState("");
+    const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>([]);
+    const [quizIndex, setQuizIndex] = useState(0);
+    const [quizAnswer, setQuizAnswer] = useState("");
+    const [quizSubmitted, setQuizSubmitted] = useState(false);
+    const [quizGenerating, setQuizGenerating] = useState(false);
+    const [quizStatus, setQuizStatus] = useState("");
+    const [showQuiz, setShowQuiz] = useState(false);
     const [form, setForm] = useState<WordForm>({ word: "", meaning: "", exampleSentence: "", folderId: "", sourceLanguage: "German", targetLanguage: "Turkish", cefrLevel: "", notes: "" });
     const touchStart = useRef<{ x: number; y: number } | null>(null);
     const supabaseRef = useRef<ReturnType<typeof createSupabaseBrowserClient>>(null);
@@ -281,6 +297,11 @@ export default function FlashcardApp() {
     }, [cards, selectedReviewFilter]);
     const queue = useMemo(() => sortReviewQueue(reviewCards, new Date(now)), [reviewCards, now]);
     const currentCard = queue[0];
+    const quizCards = useMemo(() => {
+        const prioritized = sortReviewQueue(cards, new Date(now));
+        return (prioritized.length ? prioritized : cards).slice(0, 8);
+    }, [cards, now]);
+    const currentQuizQuestion = quizQuestions[quizIndex];
     const dueCount = queue.length;
     const learnedCount = cards.filter((card) => card.state === "mastered").length;
     const todayLogs = logs.filter((log) => new Date(log.reviewedAt).toDateString() === new Date().toDateString());
@@ -331,6 +352,10 @@ export default function FlashcardApp() {
         window.addEventListener("keydown", handleKey);
         return () => window.removeEventListener("keydown", handleKey);
     }, [activeView, currentCard, handleReview, isFlipped]);
+
+    useEffect(() => {
+        if (activeView !== "review") setShowQuiz(false);
+    }, [activeView]);
 
     function openAddModal() {
         setEditingWordId(null);
@@ -573,12 +598,64 @@ export default function FlashcardApp() {
         }
     }
 
+    async function generateQuiz() {
+        if (!quizCards.length) {
+            setQuizStatus("Add a few words before starting a quiz.");
+            return;
+        }
+        setQuizGenerating(true);
+        setQuizStatus("");
+        setQuizQuestions([]);
+        setQuizIndex(0);
+        setQuizAnswer("");
+        setQuizSubmitted(false);
+        try {
+            const response = await fetch("/api/generate-quiz", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ cards: quizCards.map((card) => ({ word: card.word, meaning: card.meaning, exampleSentence: card.exampleSentence, sourceLanguage: card.sourceLanguage, targetLanguage: card.targetLanguage, cefrLevel: card.cefrLevel })) }),
+            });
+            const data = await response.json() as { questions?: QuizQuestion[]; error?: string };
+            if (!response.ok || !data.questions?.length) throw new Error(data.error ?? "Quiz generation failed");
+            setQuizQuestions(data.questions);
+        } catch (error) {
+            setQuizStatus(error instanceof Error ? error.message : "Could not generate a quiz.");
+        } finally {
+            setQuizGenerating(false);
+        }
+    }
+
+    function submitQuizAnswer() {
+        if (!currentQuizQuestion || !quizAnswer.trim()) return;
+        setQuizSubmitted(true);
+    }
+
+    function nextQuizQuestion() {
+        setQuizIndex((index) => index + 1);
+        setQuizAnswer("");
+        setQuizSubmitted(false);
+    }
+
+    function renderQuiz() {
+        const isFinished = quizQuestions.length > 0 && quizIndex >= quizQuestions.length;
+        const isCorrect = currentQuizQuestion ? quizAnswer.trim().toLowerCase() === currentQuizQuestion.answer.trim().toLowerCase() : false;
+        return <section className="quiz-page">
+            <button className="ghost-button quiz-back-button" onClick={() => setShowQuiz(false)}><ArrowLeft size={14} /> Back to review</button>
+            <div className="quiz-intro surface-panel"><div><div className="eyebrow">Personal practice</div><h2>Learn by retrieval</h2><p>Questions are built from your review queue, with extra attention on words that need another pass.</p></div><button className="primary-button" onClick={() => void generateQuiz()} disabled={quizGenerating || !quizCards.length}><Sparkles size={15} />{quizGenerating ? "Generating..." : quizQuestions.length ? "New quiz" : "Generate quiz"}</button></div>
+            {quizStatus && <div className="form-note">{quizStatus}</div>}
+            {!quizQuestions.length && !quizStatus && <div className="quiz-empty surface-panel"><ListChecks size={30} /><h2>Your next five questions</h2><p>Generate a mix of multiple-choice and fill-in-the-blank questions from your vocabulary.</p></div>}
+            {isFinished && <div className="quiz-empty surface-panel"><Check size={30} /><h2>Quiz complete</h2><p>You finished {quizQuestions.length} questions. A fresh set will use your current review queue.</p><button className="ghost-button" onClick={() => void generateQuiz()}>Try another set</button></div>}
+            {currentQuizQuestion && !isFinished && <div className="quiz-question surface-panel"><div className="quiz-question-head"><span>Question {quizIndex + 1} of {quizQuestions.length}</span><span>{currentQuizQuestion.type === "multiple-choice" ? "Multiple choice" : "Fill in the blank"}</span></div><div className="quiz-progress"><span style={{ width: `${((quizIndex + 1) / quizQuestions.length) * 100}%` }} /></div><h2>{currentQuizQuestion.prompt}</h2>{currentQuizQuestion.type === "multiple-choice" ? <div className="quiz-options">{currentQuizQuestion.options?.map((option) => <button className={`quiz-option ${quizSubmitted && option === currentQuizQuestion.answer ? "correct" : ""} ${quizSubmitted && option === quizAnswer && option !== currentQuizQuestion.answer ? "incorrect" : ""}`} key={option} onClick={() => { if (!quizSubmitted) setQuizAnswer(option); }} disabled={quizSubmitted}>{option}</button>)}</div> : <input className="quiz-answer-input" value={quizAnswer} onChange={(event) => setQuizAnswer(event.target.value)} placeholder="Type the missing word" disabled={quizSubmitted} onKeyDown={(event) => { if (event.key === "Enter") submitQuizAnswer(); }} />}{quizSubmitted && <div className={`quiz-feedback ${isCorrect ? "correct" : "incorrect"}`}><strong>{isCorrect ? "Correct" : `Answer: ${currentQuizQuestion.answer}`}</strong><span>{currentQuizQuestion.explanation}</span></div>}<div className="quiz-actions">{!quizSubmitted ? <button className="primary-button" onClick={submitQuizAnswer} disabled={!quizAnswer.trim()}>Check answer</button> : <button className="primary-button" onClick={nextQuizQuestion}>{quizIndex + 1 === quizQuestions.length ? "Finish" : "Next question"}<ArrowRight size={15} /></button>}</div></div>}
+        </section>;
+    }
+
     function renderReview() {
+        if (showQuiz) return renderQuiz();
         return (
             <div className="dashboard-grid">
                 <section className="review-stage" aria-label="Review session">
                     <div className="stage-head">
-                        <span className="eyebrow" style={{ color: "#aec2ba" }}>Today&apos;s review</span>
+                        <span className="eyebrow" style={{ color: "#aec2ba" }}>Today&apos;s review</span><button className="ghost-button quiz-launch-button" onClick={() => setShowQuiz(true)} disabled={!quizCards.length}><ListChecks size={14} /> Quiz</button>
                         <div className="review-controls">
                             <label htmlFor="review-filter">Review set</label>
                             <select id="review-filter" value={selectedReviewFilter?.value ?? "all"} onChange={(event) => { setReviewFilter(event.target.value); setIsFlipped(false); }}>
