@@ -1841,6 +1841,10 @@ select.workspace-picker {
 
 @media (max-width: 720px) {
 
+    :root {
+        --mobile-nav-height: calc(64px + env(safe-area-inset-bottom));
+    }
+
     /* iOS Safari zooms focused controls below 16px. Keep focus without viewport zoom. */
     input,
     textarea,
@@ -1850,6 +1854,7 @@ select.workspace-picker {
 
     .app-shell {
         display: block;
+        min-height: 100dvh;
     }
 
     .sidebar {
@@ -1909,7 +1914,7 @@ select.workspace-picker {
     }
 
     .page-wrap {
-        padding: 24px 16px 92px;
+        padding: 24px 16px calc(var(--mobile-nav-height) + 20px);
     }
 
     .page-header {
@@ -2042,12 +2047,14 @@ select.workspace-picker {
         position: fixed;
         z-index: 10;
         bottom: 0;
-        inset-inline: 0;
+        left: 0;
+        right: 0;
+        height: var(--mobile-nav-height);
         background: rgba(255, 253, 248, .96);
         border-top: 1px solid var(--line);
         display: grid;
         grid-template-columns: repeat(5, 1fr);
-        padding: 7px 6px calc(7px + env(safe-area-inset-bottom));
+        padding: 7px 6px env(safe-area-inset-bottom);
     }
 
     .mobile-nav button {
