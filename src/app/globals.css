@@ -1208,6 +1208,7 @@ select.workspace-picker {
     grid-template-columns: repeat(3, 1fr);
     gap: 14px;
     margin-bottom: 18px;
+    min-width: 0;
 }
 
 .big-stat {
@@ -1215,6 +1216,7 @@ select.workspace-picker {
     border: 1px solid var(--line);
     border-radius: 11px;
     padding: 19px;
+    min-width: 0;
 }
 
 .big-stat small {
@@ -1253,6 +1255,7 @@ select.workspace-picker {
     display: grid;
     grid-template-columns: minmax(0, 1.35fr) minmax(260px, .65fr);
     gap: 14px;
+    min-width: 0;
 }
 
 .stats-breakdown-grid {
@@ -1260,6 +1263,12 @@ select.workspace-picker {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 14px;
     margin-top: 14px;
+    min-width: 0;
+}
+
+.stats-detail-grid>.surface-panel,
+.stats-breakdown-grid>.surface-panel {
+    min-width: 0;
 }
 
 .stats-table {
@@ -1273,6 +1282,7 @@ select.workspace-picker {
     gap: 12px;
     padding: 12px 0;
     border-bottom: 1px solid var(--line);
+    min-width: 0;
 }
 
 .performance-row:first-child {
@@ -1285,6 +1295,7 @@ select.workspace-picker {
 }
 
 .performance-row div {
+    flex: 1 1 auto;
     min-width: 0;
 }
 
@@ -1622,6 +1633,10 @@ select.workspace-picker {
     .review-controls select {
         flex: 1;
         max-width: 220px;
+    }
+
+    .stats-breakdown-grid {
+        grid-template-columns: 1fr;
     }
 }
 
