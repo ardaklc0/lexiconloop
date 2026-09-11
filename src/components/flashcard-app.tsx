@@ -112,6 +112,9 @@ const calculateStreak = (logs: ReviewLog[], now = new Date()) => {
 const sameId = (first: string | null | undefined, second: string | null | undefined) =>
     Boolean(first && second && first.trim().toLowerCase() === second.trim().toLowerCase());
 
+const normalizeQuizAnswer = (value: string) =>
+    value.normalize("NFKC").trim().toLocaleLowerCase().replace(/^[\s\p{P}\p{S}]+|[\s\p{P}\p{S}]+$/gu, "").replace(/\s+/g, " ");
+
 export default function FlashcardApp() {
     const [activeView, setActiveView] = useState<View>("review");
     const [cards, setCards] = useState<WordRecord[]>([]);
@@ -644,7 +647,7 @@ export default function FlashcardApp() {
 
     function renderQuiz() {
         const isFinished = quizQuestions.length > 0 && quizIndex >= quizQuestions.length;
-        const isCorrect = currentQuizQuestion ? quizAnswer.trim().toLowerCase() === currentQuizQuestion.answer.trim().toLowerCase() : false;
+        const isCorrect = currentQuizQuestion ? normalizeQuizAnswer(quizAnswer) === normalizeQuizAnswer(currentQuizQuestion.answer) : false;
         return <section className="quiz-page">
             <button className="ghost-button quiz-back-button" onClick={() => setShowQuiz(false)}><ArrowLeft size={14} /> Back to review</button>
             <div className="quiz-intro surface-panel"><div><div className="eyebrow">Personal practice</div><h2>Learn by retrieval</h2><p>Questions are built from your review queue, with extra attention on words that need another pass.</p></div><button className="primary-button" onClick={() => void generateQuiz()} disabled={quizGenerating || !quizCards.length}><Sparkles size={15} />{quizGenerating ? "Generating..." : quizQuestions.length ? "New quiz" : "Generate quiz"}</button></div>

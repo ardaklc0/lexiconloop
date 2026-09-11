@@ -1909,6 +1909,18 @@ select.workspace-picker {
     background: #f4ddd2;
 }
 
+:root[data-theme="dark"] .quiz-feedback.correct {
+    border-color: #8fc4ad;
+    background: #285143;
+    color: #e8f5ed;
+}
+
+:root[data-theme="dark"] .quiz-feedback.incorrect {
+    border-color: #e28a7b;
+    background: #58332e;
+    color: #ffe9e2;
+}
+
 .quiz-actions {
     display: flex;
     justify-content: flex-end;
