@@ -586,12 +586,18 @@ select.workspace-picker {
 }
 
 .flashcard {
-    width: min(100%, 530px);
+    width: 100%;
     min-height: 290px;
     transform-style: preserve-3d;
     transition: transform .55s cubic-bezier(.2, .8, .2, 1);
     position: relative;
     cursor: pointer;
+}
+
+.flashcard-shell {
+    position: relative;
+    width: min(100%, 530px);
+    min-height: 290px;
 }
 
 .flashcard.flipped {
@@ -623,7 +629,6 @@ select.workspace-picker {
     justify-content: space-between;
     gap: 10px;
     min-width: 0;
-    padding-right: 45px;
     color: var(--muted);
     font-family: "DM Mono", monospace;
     text-transform: uppercase;
@@ -637,7 +642,6 @@ select.workspace-picker {
 }
 
 .card-topline span:last-child {
-    max-width: 55%;
     text-align: right;
 }
 
@@ -704,10 +708,6 @@ select.workspace-picker {
     z-index: 2;
     top: 22px;
     right: 22px;
-}
-
-.flashcard.flipped>.card-speaker {
-    transform: rotateY(180deg);
 }
 
 .card-word-long {
