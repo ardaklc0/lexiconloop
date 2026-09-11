@@ -621,11 +621,24 @@ select.workspace-picker {
 .card-topline {
     display: flex;
     justify-content: space-between;
+    gap: 10px;
+    min-width: 0;
+    padding-right: 45px;
     color: var(--muted);
     font-family: "DM Mono", monospace;
     text-transform: uppercase;
     font-size: 9px;
     letter-spacing: .12em;
+}
+
+.card-topline span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.card-topline span:last-child {
+    max-width: 55%;
+    text-align: right;
 }
 
 .card-word {
@@ -648,7 +661,7 @@ select.workspace-picker {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 10px;
+    width: 100%;
     min-width: 0;
     min-height: 150px;
 }
@@ -686,6 +699,13 @@ select.workspace-picker {
     color: var(--surface);
 }
 
+.card-speaker {
+    position: absolute;
+    z-index: 2;
+    top: 22px;
+    right: 22px;
+}
+
 .card-word-long {
     font-size: clamp(24px, 4.5vw, 40px);
     letter-spacing: -1px;
@@ -714,6 +734,8 @@ select.workspace-picker {
     line-height: 1.12;
     font-family: Fraunces, serif;
     letter-spacing: -.6px;
+    min-width: 0;
+    max-width: 100%;
     overflow-wrap: anywhere;
 }
 
@@ -724,6 +746,8 @@ select.workspace-picker {
     color: #5d6f68;
     font-size: 13px;
     line-height: 1.45;
+    min-width: 0;
+    max-width: 100%;
     overflow-wrap: anywhere;
 }
 
