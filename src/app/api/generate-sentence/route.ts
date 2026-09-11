@@ -26,9 +26,19 @@ export async function POST(request: Request) {
         const client = new GoogleGenerativeAI(apiKey);
         const model = client.getGenerativeModel({
             model: "gemini-2.5-flash-lite",
-            generationConfig: { responseMimeType: "application/json" },
+            generationConfig: { responseMimeType: "application/json", temperature: 0.2 },
         });
-        const prompt = `For the ${sourceLanguage || "foreign language"} word or phrase "${word.trim()}", provide a concise meaning in ${targetLanguage || "English"} and one short, natural example sentence in ${sourceLanguage || "foreign language"}. Return only valid JSON with keys meaning and sentence.`;
+        const source = sourceLanguage || "the source language";
+        const target = targetLanguage || "English";
+        const prompt = `You are a strict language-learning assistant.
+SOURCE LANGUAGE: ${source}
+TARGET LANGUAGE: ${target}
+WORD: "${word.trim()}"
+
+Return only valid JSON with exactly these keys: meaning and sentence.
+- meaning must be a concise translation or definition of WORD written ONLY in TARGET LANGUAGE (${target}). Do not write it in SOURCE LANGUAGE, do not include both languages, and do not add labels.
+- sentence must be one short, natural example sentence written ONLY in SOURCE LANGUAGE (${source}) using WORD.
+Do not swap the languages. Do not return markdown or any extra text.`;
         const result = await model.generateContent(prompt);
         const text = result.response.text().replace(/^```(?:json)?\s*|\s*```$/gi, "").trim();
         const parsed = JSON.parse(text) as { meaning?: string; sentence?: string; translation?: string };
