@@ -1,5 +1,6 @@
 export type CardState = "new" | "learning" | "review" | "mastered";
 export type ReviewRating = "forgot" | "know";
+export type CefrLevel = "A1" | "A2" | "B1" | "B2" | "C1";
 
 export type WordRecord = {
     id: string;
@@ -9,6 +10,7 @@ export type WordRecord = {
     folderId: string;
     sourceLanguage: string;
     targetLanguage: string;
+    cefrLevel?: CefrLevel;
     notes?: string;
     createdAt: string;
     state: CardState;

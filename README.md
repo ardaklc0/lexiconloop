@@ -17,7 +17,7 @@ Open `http://localhost:3000`. The app requires Supabase configuration and an aut
 
 1. Create a Supabase project.
 2. Copy `.env.example` to `.env.local` and add the project URL and anon key.
-3. Run `supabase/migrations/001_initial_schema.sql`, then `supabase/migrations/002_workspaces.sql`, then `supabase/migrations/003_repair_word_folder_workspace.sql` in the Supabase SQL editor. If the first two migrations are already applied, run only the third repair migration.
+3. Run `supabase/migrations/001_initial_schema.sql`, then `supabase/migrations/002_workspaces.sql`, `supabase/migrations/003_repair_word_folder_workspace.sql`, and `supabase/migrations/004_add_cefr_level.sql` in the Supabase SQL editor. If the earlier migrations are already applied, run the missing repair and CEFR migrations.
 4. The schema enables RLS for profiles, folders, words, progress, and review logs. Foreign keys cascade progress and logs when a word is deleted, while deleting a folder leaves its words unsorted.
 
 For the single-user setup, create your user in Supabase Auth with a password, disable public signups if desired, and set `ALLOWED_EMAILS` to your exact email. The app uses direct `signInWithPassword`; there is no register flow.
@@ -37,4 +37,4 @@ After changing `.env` or `.env.local`, stop and restart `npm.cmd run dev`; Next.
 - Rate with buttons, ArrowLeft/ArrowRight, or a mobile swipe.
 - First success schedules the next review for one day; later reviews expand with a lightweight FSRS-inspired scheduler.
 - Failed cards return in ten minutes.
-- Add words, optional meanings/examples, Gemini generation, camera capture with browser OCR, folders, search, filters, statistics, settings, responsive navigation, and PWA metadata.
+- Add words, optional meanings/examples, Gemini generation with CEFR estimation, folders, search, filters, statistics, settings, responsive navigation, and PWA metadata.

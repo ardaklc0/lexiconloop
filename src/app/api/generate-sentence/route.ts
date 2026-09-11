@@ -35,19 +35,21 @@ SOURCE LANGUAGE: ${source}
 TARGET LANGUAGE: ${target}
 WORD: "${word.trim()}"
 
-Return only valid JSON with exactly these keys: meaning and sentence.
+    Return only valid JSON with exactly these keys: meaning, sentence, and cefrLevel.
 - meaning must be a concise translation or definition of WORD written ONLY in TARGET LANGUAGE (${target}). Do not write it in SOURCE LANGUAGE, do not include both languages, and do not add labels.
 - sentence must be one short, natural example sentence written ONLY in SOURCE LANGUAGE (${source}) using WORD.
+    - cefrLevel must be exactly one of A1, A2, B1, B2, or C1. Estimate the CEFR level of WORD in SOURCE LANGUAGE.
 Do not swap the languages. Do not return markdown or any extra text.`;
         const result = await model.generateContent(prompt);
         const text = result.response.text().replace(/^```(?:json)?\s*|\s*```$/gi, "").trim();
-        const parsed = JSON.parse(text) as { meaning?: string; sentence?: string; translation?: string };
+        const parsed = JSON.parse(text) as { meaning?: string; sentence?: string; cefrLevel?: string; translation?: string };
         const meaning = parsed.meaning?.trim() || parsed.translation?.trim() || "";
+        const cefrLevel = ["A1", "A2", "B1", "B2", "C1"].includes(parsed.cefrLevel ?? "") ? parsed.cefrLevel : undefined;
 
-        if (!meaning || !parsed.sentence?.trim()) {
+        if (!meaning || !parsed.sentence?.trim() || !cefrLevel) {
             return NextResponse.json({ error: "Gemini returned incomplete word information." }, { status: 502 });
         }
-        return NextResponse.json({ meaning, sentence: parsed.sentence.trim() });
+        return NextResponse.json({ meaning, sentence: parsed.sentence.trim(), cefrLevel });
     } catch (error) {
         const message = error instanceof Error ? error.message : "Sentence generation failed. Please try again.";
         if (message.includes("dunning decision") || message.includes("[403 Forbidden]")) {

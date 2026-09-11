@@ -29,7 +29,7 @@ import { calculateNextReview, formatDueIn, sortReviewQueue } from "@/lib/spaced-
 import { applyDeviceTheme, watchDeviceTheme } from "@/lib/device-theme";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { deleteFolder, deleteWord, deleteWorkspace, insertFolder, insertWord, insertWorkspace, loadUserData, loadWorkspaces, saveReview, updateFolder, updateWord } from "@/lib/supabase/data";
-import type { CardState, Folder, ReviewLog, ReviewRating, WordRecord, Workspace } from "@/lib/types";
+import type { CardState, CefrLevel, Folder, ReviewLog, ReviewRating, WordRecord, Workspace } from "@/lib/types";
 
 type View = "review" | "words" | "folders" | "statistics" | "settings" | "add" | "add-folder";
 type Filter = "all" | CardState;
@@ -46,10 +46,12 @@ type WordForm = {
     folderId: string;
     sourceLanguage: string;
     targetLanguage: string;
+    cefrLevel: CefrLevel | "";
     notes: string;
 };
 
 const languageOptions = ["German", "Turkish", "English", "French"];
+const cefrLevels: CefrLevel[] = ["A1", "A2", "B1", "B2", "C1"];
 
 const navItems: Array<{ id: View; label: string; icon: typeof BookOpenCheck }> = [
     { id: "review", label: "Review", icon: BookOpenCheck },
@@ -125,7 +127,7 @@ export default function FlashcardApp() {
     const [reviewFilter, setReviewFilter] = useState("all");
     const [generating, setGenerating] = useState(false);
     const [generationStatus, setGenerationStatus] = useState("");
-    const [form, setForm] = useState<WordForm>({ word: "", meaning: "", exampleSentence: "", folderId: "", sourceLanguage: "German", targetLanguage: "Turkish", notes: "" });
+    const [form, setForm] = useState<WordForm>({ word: "", meaning: "", exampleSentence: "", folderId: "", sourceLanguage: "German", targetLanguage: "Turkish", cefrLevel: "", notes: "" });
     const touchStart = useRef<{ x: number; y: number } | null>(null);
     const supabaseRef = useRef<ReturnType<typeof createSupabaseBrowserClient>>(null);
     const userIdRef = useRef<string | null>(null);
@@ -332,7 +334,7 @@ export default function FlashcardApp() {
 
     function openAddModal() {
         setEditingWordId(null);
-        setForm((previous) => ({ word: "", meaning: "", exampleSentence: "", folderId: previous.folderId || folders[0]?.id || "", sourceLanguage: previous.sourceLanguage, targetLanguage: previous.targetLanguage, notes: "" }));
+        setForm((previous) => ({ word: "", meaning: "", exampleSentence: "", folderId: previous.folderId || folders[0]?.id || "", sourceLanguage: previous.sourceLanguage, targetLanguage: previous.targetLanguage, cefrLevel: "", notes: "" }));
         setGenerationStatus("");
         setReturnView(activeView === "add" ? returnView : activeView);
         setActiveView("add");
@@ -340,7 +342,7 @@ export default function FlashcardApp() {
 
     function openEditWord(card: WordRecord) {
         setEditingWordId(card.id);
-        setForm({ word: card.word, meaning: card.meaning, exampleSentence: card.exampleSentence ?? "", folderId: card.folderId, sourceLanguage: card.sourceLanguage, targetLanguage: card.targetLanguage, notes: card.notes ?? "" });
+        setForm({ word: card.word, meaning: card.meaning, exampleSentence: card.exampleSentence ?? "", folderId: card.folderId, sourceLanguage: card.sourceLanguage, targetLanguage: card.targetLanguage, cefrLevel: card.cefrLevel ?? "", notes: card.notes ?? "" });
         setGenerationStatus("");
         setReturnView(activeView === "add" ? returnView : activeView);
         setActiveView("add");
@@ -354,7 +356,7 @@ export default function FlashcardApp() {
         if (editingWordId) {
             const previous = cards.find((card) => card.id === editingWordId);
             if (!previous) return;
-            const updated = { ...previous, word: form.word.trim(), meaning: form.meaning.trim(), exampleSentence: form.exampleSentence.trim() || undefined, folderId: form.folderId, sourceLanguage: form.sourceLanguage, targetLanguage: form.targetLanguage, notes: form.notes.trim() || undefined };
+            const updated = { ...previous, word: form.word.trim(), meaning: form.meaning.trim(), exampleSentence: form.exampleSentence.trim() || undefined, folderId: form.folderId, sourceLanguage: form.sourceLanguage, targetLanguage: form.targetLanguage, cefrLevel: form.cefrLevel || undefined, notes: form.notes.trim() || undefined };
             setCards((items) => items.map((card) => card.id === editingWordId ? updated : card));
             setActiveView(returnView);
             if (cloud) {
@@ -384,6 +386,7 @@ export default function FlashcardApp() {
                     folderId: form.folderId,
                     sourceLanguage: form.sourceLanguage,
                     targetLanguage: form.targetLanguage,
+                    cefrLevel: form.cefrLevel || undefined,
                     notes: form.notes.trim() || undefined,
                 });
                 wordId = created.id;
@@ -392,7 +395,7 @@ export default function FlashcardApp() {
 
             const newCard: WordRecord = {
                 id: wordId, word: form.word.trim(), meaning: form.meaning.trim(), exampleSentence: form.exampleSentence.trim() || undefined,
-                folderId: form.folderId, sourceLanguage: form.sourceLanguage, targetLanguage: form.targetLanguage, notes: form.notes.trim() || undefined,
+                folderId: form.folderId, sourceLanguage: form.sourceLanguage, targetLanguage: form.targetLanguage, cefrLevel: form.cefrLevel || undefined, notes: form.notes.trim() || undefined,
                 createdAt, state: "new", stability: .25, difficulty: 5, dueAt: now, reps: 0, lapses: 0,
             };
             setCards((previous) => [newCard, ...previous]);
@@ -559,9 +562,9 @@ export default function FlashcardApp() {
         setGenerating(true);
         try {
             const response = await fetch("/api/generate-sentence", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ word: form.word, sourceLanguage: form.sourceLanguage, targetLanguage: form.targetLanguage }) });
-            const data = await response.json() as { meaning?: string; sentence?: string; error?: string };
+            const data = await response.json() as { meaning?: string; sentence?: string; cefrLevel?: CefrLevel; error?: string };
             if (!response.ok) throw new Error(data.error ?? "Generation failed");
-            setForm((previous) => ({ ...previous, meaning: data.meaning ?? "", exampleSentence: data.sentence ?? "" }));
+            setForm((previous) => ({ ...previous, meaning: data.meaning ?? "", exampleSentence: data.sentence ?? "", cefrLevel: data.cefrLevel ?? "" }));
             setGenerationStatus("AI content ready to edit.");
         } catch (error) {
             setGenerationStatus(error instanceof Error ? error.message : "Could not generate word information.");
@@ -589,8 +592,8 @@ export default function FlashcardApp() {
                     {currentCard ? <>
                         <div className="flashcard-wrap" onTouchStart={(event) => { const touch = event.changedTouches[0]; touchStart.current = touch ? { x: touch.clientX, y: touch.clientY } : null; }} onTouchEnd={(event) => { const touch = event.changedTouches[0]; const start = touchStart.current; touchStart.current = null; if (!start || !touch || !isFlipped) return; const deltaX = touch.clientX - start.x; const deltaY = touch.clientY - start.y; if (Math.abs(deltaX) > 65 && Math.abs(deltaX) > Math.abs(deltaY) * 1.25) handleReview(deltaX > 0 ? "know" : "forgot"); }} onTouchCancel={() => { touchStart.current = null; }}>
                             <div className={`flashcard ${isFlipped ? "flipped" : ""}`} onClick={() => setIsFlipped((value) => !value)} role="button" tabIndex={0} aria-label={isFlipped ? "Hide answer" : "Reveal answer"} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") setIsFlipped((value) => !value); }}>
-                                <div className="card-face card-front"><div className="card-topline"><span>{currentCard.sourceLanguage}</span><span>{currentCard.state}</span></div><div className={`card-word ${currentCard.word.length > 16 ? "card-word-long" : ""}`}>{currentCard.word}</div>{currentCard.exampleSentence && <div className="card-example"><span>Example</span>{currentCard.exampleSentence}</div>}<div className="card-hint"><Eye size={14} /> Tap to reveal</div></div>
-                                <div className="card-face card-back"><div className="card-topline"><span>{currentCard.sourceLanguage} → {currentCard.targetLanguage}</span><span>{formatDueIn(currentCard.dueAt, new Date(now))}</span></div><div className={`card-word card-word-answer ${currentCard.word.length > 16 ? "card-word-long" : ""}`}>{currentCard.word}</div><div className="card-meaning">{currentCard.meaning || "Add a meaning after this review."}</div>{currentCard.exampleSentence && <div className="card-example"><span>Example</span>{currentCard.exampleSentence}</div>}</div>
+                                <div className="card-face card-front"><div className="card-topline"><span>{currentCard.sourceLanguage}</span><span>{currentCard.cefrLevel ? `${currentCard.cefrLevel} · ` : ""}{currentCard.state}</span></div><div className={`card-word ${currentCard.word.length > 16 ? "card-word-long" : ""}`}>{currentCard.word}</div>{currentCard.exampleSentence && <div className="card-example"><span>Example</span>{currentCard.exampleSentence}</div>}<div className="card-hint"><Eye size={14} /> Tap to reveal</div></div>
+                                <div className="card-face card-back"><div className="card-topline"><span>{currentCard.sourceLanguage} → {currentCard.targetLanguage}</span><span>{currentCard.cefrLevel ? `${currentCard.cefrLevel} · ` : ""}{formatDueIn(currentCard.dueAt, new Date(now))}</span></div><div className={`card-word card-word-answer ${currentCard.word.length > 16 ? "card-word-long" : ""}`}>{currentCard.word}</div><div className="card-meaning">{currentCard.meaning || "Add a meaning after this review."}</div>{currentCard.exampleSentence && <div className="card-example"><span>Example</span>{currentCard.exampleSentence}</div>}</div>
                             </div>
                         </div>
                         <div className="stage-actions"><button className="review-action" disabled={!isFlipped} onClick={() => handleReview("forgot")}><ArrowLeft size={16} /> Didn&apos;t know</button><button className="review-action know" disabled={!isFlipped} onClick={() => handleReview("know")}>I knew it <ArrowRight size={16} /></button></div>
@@ -656,6 +659,7 @@ export default function FlashcardApp() {
                     <div className="field"><label htmlFor="word">Word or phrase</label><div className="input-with-action"><input id="word" required value={form.word} onChange={(event) => setForm((previous) => ({ ...previous, word: event.target.value }))} placeholder="e.g. der Kies" /><button type="button" className="input-action" onClick={generateSentence} disabled={generating || !form.word.trim()}><Sparkles size={13} />{generating ? "Generating..." : "Generate"}</button></div></div>
                     <div className="field"><label htmlFor="meaning">Meaning in target language</label><textarea id="meaning" value={form.meaning} onChange={(event) => setForm((previous) => ({ ...previous, meaning: event.target.value }))} placeholder="Generated translation" /></div>
                     <div className="field"><label htmlFor="example">Example sentence</label><textarea id="example" value={form.exampleSentence} onChange={(event) => setForm((previous) => ({ ...previous, exampleSentence: event.target.value }))} placeholder="Generated example sentence" /></div>
+                    <div className="field"><label htmlFor="cefr-level">Estimated CEFR level</label><select id="cefr-level" value={form.cefrLevel} onChange={(event) => setForm((previous) => ({ ...previous, cefrLevel: event.target.value as CefrLevel | "" }))}><option value="">Not set</option>{cefrLevels.map((level) => <option value={level} key={level}>{level}</option>)}</select></div>
                     {generationStatus && <div className="form-note">{generationStatus}</div>}
                     <div className="field"><label htmlFor="folder">Folder</label><select id="folder" value={form.folderId} onChange={(event) => setForm((previous) => ({ ...previous, folderId: event.target.value }))}>{folders.map((folder) => <option value={folder.id} key={folder.id}>{folder.name}</option>)}</select></div>
                     <div className="field"><label htmlFor="notes">Notes <span style={{ textTransform: "none", letterSpacing: 0 }}>(optional)</span></label><textarea id="notes" value={form.notes} onChange={(event) => setForm((previous) => ({ ...previous, notes: event.target.value }))} placeholder="A small memory hook..." /></div>

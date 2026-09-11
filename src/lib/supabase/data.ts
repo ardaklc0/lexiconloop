@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Folder, ReviewLog, ReviewRating, WordRecord, Workspace } from "@/lib/types";
+import type { CefrLevel, Folder, ReviewLog, ReviewRating, WordRecord, Workspace } from "@/lib/types";
 
 type WorkspaceRow = Workspace;
 
@@ -18,6 +18,7 @@ type WordRow = {
     example_sentence: string | null;
     source_language: string;
     target_language: string;
+    cefr_level: CefrLevel | null;
     notes: string | null;
     created_at: string;
 };
@@ -62,7 +63,7 @@ export async function deleteWorkspace(client: SupabaseClient, userId: string, wo
 export async function loadUserData(client: SupabaseClient, userId: string, workspaceId: string) {
     const [foldersResponse, wordsResponse, progressResponse, logsResponse] = await Promise.all([
         client.from("folders").select("id, name, description, color").eq("user_id", userId).eq("workspace_id", workspaceId).order("created_at"),
-        client.from("words").select("id, folder_id, word, meaning, example_sentence, source_language, target_language, notes, created_at").eq("user_id", userId).eq("workspace_id", workspaceId).order("created_at", { ascending: false }),
+        client.from("words").select("id, folder_id, word, meaning, example_sentence, source_language, target_language, cefr_level, notes, created_at").eq("user_id", userId).eq("workspace_id", workspaceId).order("created_at", { ascending: false }),
         client.from("word_progress").select("word_id, state, stability, difficulty, due_at, last_review_at, reps, lapses").eq("user_id", userId).eq("workspace_id", workspaceId),
         client.from("review_logs").select("id, word_id, rating, reviewed_at").eq("user_id", userId).eq("workspace_id", workspaceId).order("reviewed_at", { ascending: false }),
     ]);
@@ -93,6 +94,7 @@ export async function loadUserData(client: SupabaseClient, userId: string, works
             folderId: word.folder_id ?? "",
             sourceLanguage: word.source_language,
             targetLanguage: word.target_language,
+            cefrLevel: word.cefr_level ?? undefined,
             notes: word.notes ?? undefined,
             createdAt: word.created_at,
             state: progress?.state ?? "new",
@@ -119,7 +121,7 @@ export async function insertWord(
     client: SupabaseClient,
     userId: string,
     workspaceId: string,
-    input: Pick<WordRecord, "word" | "meaning" | "exampleSentence" | "folderId" | "sourceLanguage" | "targetLanguage" | "notes">,
+    input: Pick<WordRecord, "word" | "meaning" | "exampleSentence" | "folderId" | "sourceLanguage" | "targetLanguage" | "cefrLevel" | "notes">,
 ) {
     const { data: wordData, error: wordError } = await client
         .from("words")
@@ -132,6 +134,7 @@ export async function insertWord(
             example_sentence: input.exampleSentence ?? null,
             source_language: input.sourceLanguage,
             target_language: input.targetLanguage,
+            cefr_level: input.cefrLevel ?? null,
             notes: input.notes ?? null,
         })
         .select("id, created_at")
@@ -210,7 +213,7 @@ export async function insertFolder(client: SupabaseClient, userId: string, works
     return data as FolderRow;
 }
 
-export async function updateWord(client: SupabaseClient, userId: string, workspaceId: string, wordId: string, input: Pick<WordRecord, "word" | "meaning" | "exampleSentence" | "folderId" | "sourceLanguage" | "targetLanguage" | "notes">) {
+export async function updateWord(client: SupabaseClient, userId: string, workspaceId: string, wordId: string, input: Pick<WordRecord, "word" | "meaning" | "exampleSentence" | "folderId" | "sourceLanguage" | "targetLanguage" | "cefrLevel" | "notes">) {
     const { error } = await client.from("words").update({
         word: input.word,
         meaning: input.meaning,
@@ -218,6 +221,7 @@ export async function updateWord(client: SupabaseClient, userId: string, workspa
         folder_id: input.folderId || null,
         source_language: input.sourceLanguage,
         target_language: input.targetLanguage,
+        cefr_level: input.cefrLevel ?? null,
         notes: input.notes ?? null,
         updated_at: new Date().toISOString(),
     }).eq("id", wordId).eq("user_id", userId).eq("workspace_id", workspaceId);
