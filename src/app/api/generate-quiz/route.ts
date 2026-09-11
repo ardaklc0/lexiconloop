@@ -72,7 +72,7 @@ ${JSON.stringify(cards)}`;
         const result = await model.generateContent(prompt);
         const text = result.response.text().replace(/^```(?:json)?\s*|\s*```$/gi, "").trim();
         const parsed = JSON.parse(text) as { questions?: unknown };
-        const questions = Array.isArray(parsed.questions) ? parsed.questions.map((item) => {
+        const questions = Array.isArray(parsed.questions) ? parsed.questions.map((item): QuizQuestion | null => {
             if (!item || typeof item !== "object") return null;
             const question = item as Partial<QuizQuestion>;
             const options = Array.isArray(question.options) ? question.options.filter((option): option is string => typeof option === "string").slice(0, 4) : undefined;
@@ -80,22 +80,26 @@ ${JSON.stringify(cards)}`;
             if (question.type === "multiple-choice" && (!options || options.length !== 4)) return null;
             const card = cards.find((item) => normalizeQuizText(item.word ?? "") === normalizeQuizText(question.word ?? ""));
             if (!card?.word) return null;
+            const answerWord = card.word.trim();
             if (question.type === "fill-blank") {
                 if (!card.exampleSentence) return null;
-                const wordPattern = new RegExp(escapeRegExp(card.word.trim()), "iu");
+                const wordPattern = new RegExp(escapeRegExp(answerWord), "iu");
                 if (!wordPattern.test(card.exampleSentence)) return null;
                 const distractors = shuffle(cards
                     .map((item) => item.word?.trim())
-                    .filter((word): word is string => Boolean(word) && normalizeQuizText(word) !== normalizeQuizText(card.word))
+                    .filter((word): word is string => {
+                        if (!word) return false;
+                        return normalizeQuizText(word) !== normalizeQuizText(answerWord);
+                    })
                 ).slice(0, 3);
                 if (distractors.length < 3) return null;
                 return {
                     type: "fill-blank",
                     prompt: card.exampleSentence.replace(wordPattern, "_____"),
-                    options: shuffle([card.word.trim(), ...distractors]),
-                    answer: card.word.trim(),
-                    explanation: typeof question.explanation === "string" && question.explanation.trim() ? question.explanation.trim() : `${card.word.trim()} means ${card.meaning?.trim() || "the saved meaning"}.`,
-                    word: card.word.trim(),
+                    options: shuffle([answerWord, ...distractors]),
+                    answer: answerWord,
+                    explanation: typeof question.explanation === "string" && question.explanation.trim() ? question.explanation.trim() : `${answerWord} means ${card.meaning?.trim() || "the saved meaning"}.`,
+                    word: answerWord,
                 } satisfies QuizQuestion;
             }
             if (containsQuizPhrase(question.prompt, question.answer)) return null;
@@ -107,7 +111,7 @@ ${JSON.stringify(cards)}`;
                 explanation: typeof question.explanation === "string" ? question.explanation.trim() : "",
                 word: question.word.trim(),
             } satisfies QuizQuestion;
-        }).filter((question): question is QuizQuestion => Boolean(question)).slice(0, questionCount) : [];
+        }).filter((question): question is QuizQuestion => question !== null).slice(0, questionCount) : [];
 
         if (questions.length < Math.min(3, questionCount)) {
             return NextResponse.json({ error: "Gemini could not create enough quiz questions." }, { status: 502 });
