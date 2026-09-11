@@ -1021,6 +1021,21 @@ select.workspace-picker {
     gap: 8px;
 }
 
+.word-main {
+    position: relative;
+    align-self: stretch;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.word-title .word-speaker {
+    position: absolute;
+    top: 50%;
+    right: -48px;
+    transform: translateY(-50%);
+}
+
 .word-title strong {
     min-width: 0;
     flex: 1;
