@@ -1015,6 +1015,10 @@ select.workspace-picker {
 
 .word-main {
     min-width: 0;
+    align-self: stretch;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
 }
 
 .word-title {
@@ -1022,15 +1026,12 @@ select.workspace-picker {
     align-items: center;
     min-width: 0;
     gap: 8px;
-    align-self: stretch;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
 }
 
 .word-title strong {
     min-width: 0;
     flex: 1;
+    text-align: left;
 }
 
 .word-speaker {
@@ -1704,8 +1705,21 @@ select.workspace-picker {
     }
 
     .word-row {
-        grid-template-columns: 1fr auto auto;
+        grid-template-columns: minmax(0, 1fr) auto auto;
         gap: 8px;
+        min-width: 0;
+    }
+
+    .word-main {
+        min-width: 0;
+    }
+
+    .word-main span {
+        max-width: 100%;
+    }
+
+    .row-actions {
+        gap: 4px;
     }
 
     .word-folder,
