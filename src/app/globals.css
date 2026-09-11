@@ -1348,6 +1348,11 @@ select.workspace-picker {
     font-size: 17px;
 }
 
+.field input,
+.field textarea {
+    overflow-wrap: anywhere;
+}
+
 .field input:focus,
 .field textarea:focus,
 .field select:focus {
@@ -1357,6 +1362,7 @@ select.workspace-picker {
 
 .field textarea {
     min-height: 80px;
+    line-height: 1.45;
     resize: vertical;
 }
 
@@ -1384,7 +1390,7 @@ select.workspace-picker {
     opacity: .55;
 }
 
-.camera-note {
+.form-note {
     background: #f4ecd0;
     color: #80691d;
     border-radius: 7px;

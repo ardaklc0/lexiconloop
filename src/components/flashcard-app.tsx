@@ -6,7 +6,6 @@ import {
     ArrowRight,
     BarChart3,
     BookOpenCheck,
-    Camera,
     Check,
     CirclePlus,
     ChevronDown,
@@ -125,7 +124,7 @@ export default function FlashcardApp() {
     const [filter, setFilter] = useState<Filter>("all");
     const [reviewFilter, setReviewFilter] = useState("all");
     const [generating, setGenerating] = useState(false);
-    const [scanStatus, setScanStatus] = useState("");
+    const [generationStatus, setGenerationStatus] = useState("");
     const [form, setForm] = useState<WordForm>({ word: "", meaning: "", exampleSentence: "", folderId: "", sourceLanguage: "German", targetLanguage: "Turkish", notes: "" });
     const touchStart = useRef<{ x: number; y: number } | null>(null);
     const supabaseRef = useRef<ReturnType<typeof createSupabaseBrowserClient>>(null);
@@ -334,7 +333,7 @@ export default function FlashcardApp() {
     function openAddModal() {
         setEditingWordId(null);
         setForm((previous) => ({ word: "", meaning: "", exampleSentence: "", folderId: previous.folderId || folders[0]?.id || "", sourceLanguage: previous.sourceLanguage, targetLanguage: previous.targetLanguage, notes: "" }));
-        setScanStatus("");
+        setGenerationStatus("");
         setReturnView(activeView === "add" ? returnView : activeView);
         setActiveView("add");
     }
@@ -342,7 +341,7 @@ export default function FlashcardApp() {
     function openEditWord(card: WordRecord) {
         setEditingWordId(card.id);
         setForm({ word: card.word, meaning: card.meaning, exampleSentence: card.exampleSentence ?? "", folderId: card.folderId, sourceLanguage: card.sourceLanguage, targetLanguage: card.targetLanguage, notes: card.notes ?? "" });
-        setScanStatus("");
+        setGenerationStatus("");
         setReturnView(activeView === "add" ? returnView : activeView);
         setActiveView("add");
     }
@@ -560,31 +559,14 @@ export default function FlashcardApp() {
         setGenerating(true);
         try {
             const response = await fetch("/api/generate-sentence", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ word: form.word, sourceLanguage: form.sourceLanguage, targetLanguage: form.targetLanguage }) });
-            const data = await response.json() as { sentence?: string; error?: string };
+            const data = await response.json() as { meaning?: string; sentence?: string; error?: string };
             if (!response.ok) throw new Error(data.error ?? "Generation failed");
-            setForm((previous) => ({ ...previous, exampleSentence: data.sentence ?? "" }));
-            setScanStatus("Sentence ready to edit.");
+            setForm((previous) => ({ ...previous, meaning: data.meaning ?? "", exampleSentence: data.sentence ?? "" }));
+            setGenerationStatus("AI content ready to edit.");
         } catch (error) {
-            setScanStatus(error instanceof Error ? error.message : "Could not generate a sentence.");
+            setGenerationStatus(error instanceof Error ? error.message : "Could not generate word information.");
         } finally {
             setGenerating(false);
-        }
-    }
-
-    async function scanImage(event: React.ChangeEvent<HTMLInputElement>) {
-        const file = event.target.files?.[0];
-        if (!file) return;
-        setScanStatus("Reading text...");
-        try {
-            const { recognize } = await import("tesseract.js");
-            const result = await recognize(file, "eng");
-            const firstLine = result.data.text.split("\n").map((line) => line.trim()).find(Boolean);
-            if (firstLine) setForm((previous) => ({ ...previous, word: firstLine }));
-            setScanStatus(firstLine ? "Detected text. Check it before saving." : "No clear text found. Try another photo.");
-        } catch {
-            setScanStatus("Camera text reading is unavailable in this browser.");
-        } finally {
-            event.target.value = "";
         }
     }
 
@@ -667,15 +649,15 @@ export default function FlashcardApp() {
                     <button className="icon-button" onClick={() => setActiveView(returnView)} aria-label="Close"><X size={17} /></button>
                 </div>
                 <form className="form-grid" onSubmit={addWord}>
-                    <div className="field"><label htmlFor="word">Word or phrase</label><div className="input-with-action"><input id="word" required value={form.word} onChange={(event) => setForm((previous) => ({ ...previous, word: event.target.value }))} placeholder="e.g. der Kies" /><label className="input-action" style={{ display: "inline-flex", alignItems: "center", cursor: "pointer" }}><Camera size={14} /><span>Scan</span><input type="file" accept="image/*" capture="environment" onChange={scanImage} style={{ display: "none" }} /></label></div></div>
-                    <div className="field"><label htmlFor="meaning">Meaning</label><input id="meaning" value={form.meaning} onChange={(event) => setForm((previous) => ({ ...previous, meaning: event.target.value }))} placeholder="e.g. translation" /></div>
-                    <div className="field"><label htmlFor="example">Example sentence <span style={{ textTransform: "none", letterSpacing: 0 }}>(optional)</span></label><div className="input-with-action"><input id="example" value={form.exampleSentence} onChange={(event) => setForm((previous) => ({ ...previous, exampleSentence: event.target.value }))} placeholder="Write one or generate it" /><button type="button" className="input-action" onClick={generateSentence} disabled={generating || !form.word.trim()}><Sparkles size={13} />{generating ? "Writing..." : "Generate"}</button></div></div>
-                    {scanStatus && <div className="camera-note">{scanStatus}</div>}
-                    <div className="field"><label htmlFor="folder">Folder</label><select id="folder" value={form.folderId} onChange={(event) => setForm((previous) => ({ ...previous, folderId: event.target.value }))}>{folders.map((folder) => <option value={folder.id} key={folder.id}>{folder.name}</option>)}</select></div>
                     <div className="language-row">
                         <div className="field"><label htmlFor="source-language">Source language</label><select id="source-language" value={form.sourceLanguage} onChange={(event) => setForm((previous) => ({ ...previous, sourceLanguage: event.target.value }))}>{languageOptions.map((language) => <option value={language} key={language}>{language}</option>)}</select></div>
                         <div className="field"><label htmlFor="target-language">Target language</label><select id="target-language" value={form.targetLanguage} onChange={(event) => setForm((previous) => ({ ...previous, targetLanguage: event.target.value }))}>{languageOptions.map((language) => <option value={language} key={language}>{language}</option>)}</select></div>
                     </div>
+                    <div className="field"><label htmlFor="word">Word or phrase</label><div className="input-with-action"><input id="word" required value={form.word} onChange={(event) => setForm((previous) => ({ ...previous, word: event.target.value }))} placeholder="e.g. der Kies" /><button type="button" className="input-action" onClick={generateSentence} disabled={generating || !form.word.trim()}><Sparkles size={13} />{generating ? "Generating..." : "Generate"}</button></div></div>
+                    <div className="field"><label htmlFor="meaning">Meaning in target language</label><textarea id="meaning" value={form.meaning} onChange={(event) => setForm((previous) => ({ ...previous, meaning: event.target.value }))} placeholder="Generated translation" /></div>
+                    <div className="field"><label htmlFor="example">Example sentence</label><textarea id="example" value={form.exampleSentence} onChange={(event) => setForm((previous) => ({ ...previous, exampleSentence: event.target.value }))} placeholder="Generated example sentence" /></div>
+                    {generationStatus && <div className="form-note">{generationStatus}</div>}
+                    <div className="field"><label htmlFor="folder">Folder</label><select id="folder" value={form.folderId} onChange={(event) => setForm((previous) => ({ ...previous, folderId: event.target.value }))}>{folders.map((folder) => <option value={folder.id} key={folder.id}>{folder.name}</option>)}</select></div>
                     <div className="field"><label htmlFor="notes">Notes <span style={{ textTransform: "none", letterSpacing: 0 }}>(optional)</span></label><textarea id="notes" value={form.notes} onChange={(event) => setForm((previous) => ({ ...previous, notes: event.target.value }))} placeholder="A small memory hook..." /></div>
                     <div className="modal-footer"><button type="button" className="ghost-button" onClick={() => setActiveView(returnView)}>Cancel</button><button className="primary-button" type="submit"><Check size={15} /> Save word</button></div>
                 </form>

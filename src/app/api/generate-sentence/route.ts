@@ -28,15 +28,16 @@ export async function POST(request: Request) {
             model: "gemini-2.5-flash-lite",
             generationConfig: { responseMimeType: "application/json" },
         });
-        const prompt = `Create one short, natural ${sourceLanguage || "foreign language"} example sentence using "${word.trim()}". The learner speaks ${targetLanguage || "English"}. Return only valid JSON with keys sentence and translation.`;
+        const prompt = `For the ${sourceLanguage || "foreign language"} word or phrase "${word.trim()}", provide a concise meaning in ${targetLanguage || "English"} and one short, natural example sentence in ${sourceLanguage || "foreign language"}. Return only valid JSON with keys meaning and sentence.`;
         const result = await model.generateContent(prompt);
         const text = result.response.text().replace(/^```(?:json)?\s*|\s*```$/gi, "").trim();
-        const parsed = JSON.parse(text) as { sentence?: string; translation?: string };
+        const parsed = JSON.parse(text) as { meaning?: string; sentence?: string; translation?: string };
+        const meaning = parsed.meaning?.trim() || parsed.translation?.trim() || "";
 
-        if (!parsed.sentence) {
-            return NextResponse.json({ error: "Gemini returned an empty sentence." }, { status: 502 });
+        if (!meaning || !parsed.sentence?.trim()) {
+            return NextResponse.json({ error: "Gemini returned incomplete word information." }, { status: 502 });
         }
-        return NextResponse.json({ sentence: parsed.sentence, translation: parsed.translation ?? "" });
+        return NextResponse.json({ meaning, sentence: parsed.sentence.trim() });
     } catch (error) {
         const message = error instanceof Error ? error.message : "Sentence generation failed. Please try again.";
         if (message.includes("dunning decision") || message.includes("[403 Forbidden]")) {
