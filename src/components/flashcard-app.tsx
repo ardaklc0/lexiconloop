@@ -146,6 +146,8 @@ export default function FlashcardApp() {
     const [quizGenerating, setQuizGenerating] = useState(false);
     const [quizStatus, setQuizStatus] = useState("");
     const [showQuiz, setShowQuiz] = useState(false);
+    const [quizCount, setQuizCount] = useState(5);
+    const [quizSource, setQuizSource] = useState<"recent" | "random">("recent");
     const [form, setForm] = useState<WordForm>({ word: "", meaning: "", exampleSentence: "", folderId: "", sourceLanguage: "German", targetLanguage: "Turkish", cefrLevel: "", notes: "" });
     const touchStart = useRef<{ x: number; y: number } | null>(null);
     const supabaseRef = useRef<ReturnType<typeof createSupabaseBrowserClient>>(null);
@@ -300,10 +302,7 @@ export default function FlashcardApp() {
     }, [cards, selectedReviewFilter]);
     const queue = useMemo(() => sortReviewQueue(reviewCards, new Date(now)), [reviewCards, now]);
     const currentCard = queue[0];
-    const quizCards = useMemo(() => {
-        const prioritized = sortReviewQueue(cards, new Date(now));
-        return (prioritized.length ? prioritized : cards).slice(0, 8);
-    }, [cards, now]);
+    const quizCards = useMemo(() => [...cards].sort((first, second) => new Date(second.createdAt).getTime() - new Date(first.createdAt).getTime()), [cards]);
     const currentQuizQuestion = quizQuestions[quizIndex];
     const dueCount = queue.length;
     const learnedCount = cards.filter((card) => card.state === "mastered").length;
@@ -619,10 +618,18 @@ export default function FlashcardApp() {
         setQuizAnswer("");
         setQuizSubmitted(false);
         try {
+            const selectedCards = [...quizCards];
+            if (quizSource === "random") {
+                for (let index = selectedCards.length - 1; index > 0; index -= 1) {
+                    const randomIndex = Math.floor(Math.random() * (index + 1));
+                    [selectedCards[index], selectedCards[randomIndex]] = [selectedCards[randomIndex], selectedCards[index]];
+                }
+            }
+            const quizPool = selectedCards.slice(0, quizCount);
             const response = await fetch("/api/generate-quiz", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ cards: quizCards.map((card) => ({ word: card.word, meaning: card.meaning, exampleSentence: card.exampleSentence, sourceLanguage: card.sourceLanguage, targetLanguage: card.targetLanguage, cefrLevel: card.cefrLevel })) }),
+                body: JSON.stringify({ questionCount: quizCount, variation: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, cards: quizPool.map((card) => ({ word: card.word, meaning: card.meaning, exampleSentence: card.exampleSentence, sourceLanguage: card.sourceLanguage, targetLanguage: card.targetLanguage, cefrLevel: card.cefrLevel })) }),
             });
             const data = await response.json() as { questions?: QuizQuestion[]; error?: string };
             if (!response.ok || !data.questions?.length) throw new Error(data.error ?? "Quiz generation failed");
@@ -650,9 +657,9 @@ export default function FlashcardApp() {
         const isCorrect = currentQuizQuestion ? normalizeQuizAnswer(quizAnswer) === normalizeQuizAnswer(currentQuizQuestion.answer) : false;
         return <section className="quiz-page">
             <button className="ghost-button quiz-back-button" onClick={() => setShowQuiz(false)}><ArrowLeft size={14} /> Back to review</button>
-            <div className="quiz-intro surface-panel"><div><div className="eyebrow">Personal practice</div><h2>Learn by retrieval</h2><p>Questions are built from your review queue, with extra attention on words that need another pass.</p></div><button className="primary-button" onClick={() => void generateQuiz()} disabled={quizGenerating || !quizCards.length}><Sparkles size={15} />{quizGenerating ? "Generating..." : quizQuestions.length ? "New quiz" : "Generate quiz"}</button></div>
+            <div className="quiz-intro surface-panel"><div><div className="eyebrow">Personal practice</div><h2>Learn by retrieval</h2><p>Questions are built from your vocabulary and reshuffled for each new quiz.</p></div><div className="quiz-settings"><label>Questions<input type="number" min="1" max="50" step="1" value={quizCount} onChange={(event) => setQuizCount(Math.min(50, Math.max(1, Number(event.target.value) || 1)))} /></label><label>Words<select value={quizSource} onChange={(event) => setQuizSource(event.target.value as "recent" | "random")}><option value="recent">Recent</option><option value="random">Random</option></select></label><button className="primary-button" onClick={() => void generateQuiz()} disabled={quizGenerating || !quizCards.length}><Sparkles size={15} />{quizGenerating ? "Generating..." : quizQuestions.length ? "New quiz" : "Generate quiz"}</button></div></div>
             {quizStatus && <div className="form-note">{quizStatus}</div>}
-            {!quizQuestions.length && !quizStatus && <div className="quiz-empty surface-panel"><ListChecks size={30} /><h2>Your next five questions</h2><p>Generate a mix of multiple-choice and fill-in-the-blank questions from your vocabulary.</p></div>}
+            {!quizQuestions.length && !quizStatus && <div className="quiz-empty surface-panel"><ListChecks size={30} /><h2>Your next {quizCount} questions</h2><p>Generate a mix of multiple-choice and fill-in-the-blank questions from your vocabulary.</p></div>}
             {isFinished && <div className="quiz-empty surface-panel"><Check size={30} /><h2>Quiz complete</h2><p>You finished {quizQuestions.length} questions. A fresh set will use your current review queue.</p><button className="ghost-button" onClick={() => void generateQuiz()}>Try another set</button></div>}
             {currentQuizQuestion && !isFinished && <div className="quiz-question surface-panel"><div className="quiz-question-head"><span>Question {quizIndex + 1} of {quizQuestions.length}</span><span>{currentQuizQuestion.type === "multiple-choice" ? "Multiple choice" : "Fill in the blank"}</span></div><div className="quiz-progress"><span style={{ width: `${((quizIndex + 1) / quizQuestions.length) * 100}%` }} /></div><h2>{currentQuizQuestion.prompt}</h2>{currentQuizQuestion.type === "multiple-choice" ? <div className="quiz-options">{currentQuizQuestion.options?.map((option) => <button className={`quiz-option ${!quizSubmitted && option === quizAnswer ? "selected" : ""} ${quizSubmitted && option === currentQuizQuestion.answer ? "correct" : ""} ${quizSubmitted && option === quizAnswer && option !== currentQuizQuestion.answer ? "incorrect" : ""}`} key={option} onClick={() => { if (!quizSubmitted) setQuizAnswer(option); }} disabled={quizSubmitted}>{option}</button>)}</div> : <input className="quiz-answer-input" value={quizAnswer} onChange={(event) => setQuizAnswer(event.target.value)} placeholder="Type the missing word" disabled={quizSubmitted} onKeyDown={(event) => { if (event.key === "Enter") submitQuizAnswer(); }} />}{quizSubmitted && <div className={`quiz-feedback ${isCorrect ? "correct" : "incorrect"}`}><strong>{isCorrect ? "Correct" : `Correct answer: ${currentQuizQuestion.answer}`}</strong><span>{currentQuizQuestion.explanation || (quizAnswer.trim() ? "Keep practicing this word." : "The answer is shown above. Try to remember it for next time.")}</span></div>}<div className="quiz-actions">{!quizSubmitted ? <button className="primary-button" onClick={submitQuizAnswer}>Check answer</button> : <button className="primary-button" onClick={nextQuizQuestion}>{quizIndex + 1 === quizQuestions.length ? "Finish" : "Next question"}<ArrowRight size={15} /></button>}</div></div>}
         </section>;

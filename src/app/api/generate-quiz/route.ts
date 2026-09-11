@@ -27,8 +27,9 @@ export async function POST(request: Request) {
     }
 
     try {
-        const body = await request.json() as { cards?: Array<{ word?: string; meaning?: string; exampleSentence?: string; sourceLanguage?: string; targetLanguage?: string; cefrLevel?: string }> };
-        const cards = (body.cards ?? []).filter((card) => typeof card.word === "string" && card.word.trim()).slice(0, 8);
+        const body = await request.json() as { questionCount?: number; variation?: string; cards?: Array<{ word?: string; meaning?: string; exampleSentence?: string; sourceLanguage?: string; targetLanguage?: string; cefrLevel?: string }> };
+        const questionCount = Number.isInteger(body.questionCount) ? Math.min(50, Math.max(1, body.questionCount as number)) : 5;
+        const cards = (body.cards ?? []).filter((card) => typeof card.word === "string" && card.word.trim()).slice(0, 100);
         if (!cards.length) {
             return NextResponse.json({ error: "Add a few words before starting a quiz." }, { status: 400 });
         }
@@ -39,7 +40,7 @@ export async function POST(request: Request) {
             generationConfig: { responseMimeType: "application/json", temperature: 0.35 },
         });
         const prompt = `You are creating a personalized vocabulary quiz.
-Create exactly 5 questions from the learner's word list below. Use a balanced mix of multiple-choice and fill-blank questions.
+Create exactly ${questionCount} questions from the learner's word list below. Use a balanced mix of multiple-choice and fill-blank questions. Do not repeat a word until every word has been used; if more questions are requested than words available, reuse words with a different question format or context. This is quiz variation ${body.variation ?? "fresh"}; write fresh prompts and explanations.
 For multiple-choice questions, create exactly 4 options: one correct answer and three plausible but incorrect distractors.
 For fill-blank questions, use the example sentence and replace the target word or phrase with "_____".
 The answer must be the exact word or phrase from the list for fill-blank questions, and the correct option text for multiple-choice questions.
@@ -64,7 +65,7 @@ ${JSON.stringify(cards)}`;
                 explanation: typeof question.explanation === "string" ? question.explanation.trim() : "",
                 word: question.word.trim(),
             } satisfies QuizQuestion;
-        }).filter((question): question is QuizQuestion => Boolean(question)).slice(0, 5) : [];
+        }).filter((question): question is QuizQuestion => Boolean(question)).slice(0, questionCount) : [];
 
         if (questions.length < 3) {
             return NextResponse.json({ error: "Gemini could not create enough quiz questions." }, { status: 502 });

@@ -1603,6 +1603,16 @@ select.workspace-picker {
         flex-direction: column;
     }
 
+    .quiz-settings {
+        justify-content: stretch;
+    }
+
+    .quiz-settings label,
+    .quiz-settings select,
+    .quiz-settings .primary-button {
+        flex: 1;
+    }
+
     .quiz-intro .primary-button {
         justify-content: center;
     }
@@ -1757,6 +1767,35 @@ select.workspace-picker {
     align-items: center;
     justify-content: space-between;
     gap: 20px;
+}
+
+.quiz-settings {
+    display: flex;
+    align-items: end;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.quiz-settings label {
+    display: grid;
+    gap: 5px;
+    color: var(--muted);
+    font-family: "DM Mono", monospace;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+}
+
+.quiz-settings input,
+.quiz-settings select {
+    min-width: 86px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    padding: 9px 10px;
+    background: var(--surface);
+    color: var(--ink);
+    font-size: 13px;
 }
 
 .quiz-intro h2,
