@@ -23,6 +23,12 @@ type QuizCard = {
 
 const normalizeQuizText = (value: string) => value.normalize("NFKC").trim().toLocaleLowerCase();
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const containsQuizPhrase = (text: string, phrase: string) => {
+    const normalizedText = normalizeQuizText(text);
+    const normalizedPhrase = normalizeQuizText(phrase);
+    if (!normalizedPhrase) return false;
+    return new RegExp(`(^|[^\\p{L}\\p{N}])${escapeRegExp(normalizedPhrase)}(?=$|[^\\p{L}\\p{N}])`, "u").test(normalizedText);
+};
 
 export async function POST(request: Request) {
     const supabase = await createSupabaseServerClient();
@@ -54,6 +60,7 @@ export async function POST(request: Request) {
         const prompt = `You are creating a personalized vocabulary quiz.
 Create exactly ${questionCount} questions from the learner's word list below. Use a balanced mix of multiple-choice and fill-blank questions. Do not repeat a word until every word has been used; if more questions are requested than words available, reuse words with a different question format or context. This is quiz variation ${body.variation ?? "fresh"}; write fresh prompts and explanations.
 For multiple-choice questions, create exactly 4 options: one correct answer and three plausible but incorrect distractors.
+For multiple-choice questions, never include the correct answer text in the prompt. The prompt may mention the source word, but it must not reveal the answer or any translation.
 For fill-blank questions, use one exampleSentence from the word list and replace the exact source-language word or phrase with "_____". The prompt must remain a natural sentence in the source language, and the answer must be that exact source-language word or phrase. Never ask for a translation in a fill-blank question. Never write instructions such as "Use the English word from the list".
 The answer must be the exact word or phrase from the list for fill-blank questions, and the correct option text for multiple-choice questions.
 Keep prompts concise. Return only valid JSON with this exact shape: {"questions":[{"type":"multiple-choice"|"fill-blank","prompt":"...","options":["..."],"answer":"...","explanation":"...","word":"..."}]}.
@@ -83,6 +90,7 @@ ${JSON.stringify(cards)}`;
                     word: card.word.trim(),
                 } satisfies QuizQuestion;
             }
+            if (containsQuizPhrase(question.prompt, question.answer)) return null;
             return {
                 type: question.type,
                 prompt: question.prompt.trim(),
