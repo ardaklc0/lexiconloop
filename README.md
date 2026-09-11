@@ -20,7 +20,7 @@ Open `http://localhost:3000`. The app requires Supabase configuration and an aut
 3. Run `supabase/migrations/001_initial_schema.sql`, then `supabase/migrations/002_workspaces.sql`, `supabase/migrations/003_repair_word_folder_workspace.sql`, and `supabase/migrations/004_add_cefr_level.sql` in the Supabase SQL editor. If the earlier migrations are already applied, run the missing repair and CEFR migrations.
 4. The schema enables RLS for profiles, folders, words, progress, and review logs. Foreign keys cascade progress and logs when a word is deleted, while deleting a folder leaves its words unsorted.
 
-For the single-user setup, create your user in Supabase Auth with a password, disable public signups if desired, and set `ALLOWED_EMAILS` to your exact email. The app uses direct `signInWithPassword`; there is no register flow.
+Create users in Supabase Auth with a password. Any user with an existing Supabase account can sign in; the app uses direct `signInWithPassword` and does not provide a register flow.
 
 The Supabase browser/server helpers and CRUD mapping live in `src/lib/supabase`. With a configured project, the app redirects unauthenticated visitors to `/auth`, loads the selected workspace's folders, words, progress, and review logs, and persists new words, folders, ratings, and workspaces through RLS-protected queries.
 

@@ -1,6 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
-import { isAllowedEmail } from "@/lib/auth-allowlist";
 
 export async function POST(request: Request) {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -15,10 +14,6 @@ export async function POST(request: Request) {
         if (!email || !email.includes("@")) {
             return NextResponse.json({ error: "Enter a valid email address." }, { status: 400 });
         }
-        if (!isAllowedEmail(email)) {
-            return NextResponse.json({ error: "This account is not allowed to sign in." }, { status: 403 });
-        }
-
         const supabase = createClient(url, anonKey, { auth: { autoRefreshToken: false, persistSession: false } });
         const { error } = await supabase.auth.signInWithOtp({
             email,

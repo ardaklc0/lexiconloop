@@ -16,9 +16,7 @@ export default function AuthPage() {
     useEffect(() => {
         const supabase = createSupabaseBrowserClient();
         const error = new URLSearchParams(window.location.search).get("error");
-        if (error === "not-allowed") {
-            setMessage("This email is not allowed to use this workspace.");
-        } else if (error === "missing-config" || !supabase) {
+        if (error === "missing-config" || !supabase) {
             setMessage("Supabase is not configured. Add the NEXT_PUBLIC Supabase variables and restart the dev server.");
         }
         if (!supabase) return;

@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { isAllowedEmail } from "@/lib/auth-allowlist";
 
 type QuizQuestion = {
     type: "multiple-choice" | "fill-blank";
@@ -36,8 +35,8 @@ export async function POST(request: Request) {
     const supabase = await createSupabaseServerClient();
     if (supabase) {
         const { data: { user } } = await supabase.auth.getUser();
-        if (!user || !isAllowedEmail(user.email)) {
-            return NextResponse.json({ error: "You must be signed in with an allowed account." }, { status: 401 });
+        if (!user) {
+            return NextResponse.json({ error: "You must be signed in." }, { status: 401 });
         }
     }
 

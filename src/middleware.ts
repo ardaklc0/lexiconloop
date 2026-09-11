@@ -1,6 +1,5 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { isAllowedEmail } from "@/lib/auth-allowlist";
 
 export async function middleware(request: NextRequest) {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -22,10 +21,6 @@ export async function middleware(request: NextRequest) {
     });
 
     const { data: { user } } = await supabase.auth.getUser();
-    if (user && !isAllowedEmail(user.email) && !request.nextUrl.pathname.startsWith("/auth")) {
-        await supabase.auth.signOut();
-        return NextResponse.redirect(new URL("/auth?error=not-allowed", request.url));
-    }
     return response;
 }
 
