@@ -1880,6 +1880,18 @@ select.workspace-picker {
     box-shadow: 0 0 0 3px rgba(46, 98, 87, .1);
 }
 
+:root[data-theme="dark"] .quiz-answer-input {
+    background: var(--surface);
+    color: var(--ink);
+    caret-color: var(--sage);
+    -webkit-text-fill-color: var(--ink);
+}
+
+:root[data-theme="dark"] .quiz-answer-input::placeholder {
+    color: var(--muted);
+    opacity: 1;
+}
+
 .quiz-feedback {
     display: grid;
     gap: 4px;

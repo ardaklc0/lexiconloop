@@ -357,6 +357,12 @@ export default function FlashcardApp() {
         if (activeView !== "review") setShowQuiz(false);
     }, [activeView]);
 
+    useEffect(() => {
+        if (activeView !== "review") return;
+        const eyebrow = document.querySelector<HTMLElement>(".page-header .eyebrow");
+        if (eyebrow) eyebrow.textContent = new Date(now).toLocaleDateString("en-US", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
+    }, [activeView, now]);
+
     function openAddModal() {
         setEditingWordId(null);
         setForm((previous) => ({ word: "", meaning: "", exampleSentence: "", folderId: previous.folderId || folders[0]?.id || "", sourceLanguage: previous.sourceLanguage, targetLanguage: previous.targetLanguage, cefrLevel: "", notes: "" }));
@@ -626,7 +632,7 @@ export default function FlashcardApp() {
     }
 
     function submitQuizAnswer() {
-        if (!currentQuizQuestion || !quizAnswer.trim()) return;
+        if (!currentQuizQuestion) return;
         setQuizSubmitted(true);
     }
 
@@ -645,7 +651,7 @@ export default function FlashcardApp() {
             {quizStatus && <div className="form-note">{quizStatus}</div>}
             {!quizQuestions.length && !quizStatus && <div className="quiz-empty surface-panel"><ListChecks size={30} /><h2>Your next five questions</h2><p>Generate a mix of multiple-choice and fill-in-the-blank questions from your vocabulary.</p></div>}
             {isFinished && <div className="quiz-empty surface-panel"><Check size={30} /><h2>Quiz complete</h2><p>You finished {quizQuestions.length} questions. A fresh set will use your current review queue.</p><button className="ghost-button" onClick={() => void generateQuiz()}>Try another set</button></div>}
-            {currentQuizQuestion && !isFinished && <div className="quiz-question surface-panel"><div className="quiz-question-head"><span>Question {quizIndex + 1} of {quizQuestions.length}</span><span>{currentQuizQuestion.type === "multiple-choice" ? "Multiple choice" : "Fill in the blank"}</span></div><div className="quiz-progress"><span style={{ width: `${((quizIndex + 1) / quizQuestions.length) * 100}%` }} /></div><h2>{currentQuizQuestion.prompt}</h2>{currentQuizQuestion.type === "multiple-choice" ? <div className="quiz-options">{currentQuizQuestion.options?.map((option) => <button className={`quiz-option ${!quizSubmitted && option === quizAnswer ? "selected" : ""} ${quizSubmitted && option === currentQuizQuestion.answer ? "correct" : ""} ${quizSubmitted && option === quizAnswer && option !== currentQuizQuestion.answer ? "incorrect" : ""}`} key={option} onClick={() => { if (!quizSubmitted) setQuizAnswer(option); }} disabled={quizSubmitted}>{option}</button>)}</div> : <input className="quiz-answer-input" value={quizAnswer} onChange={(event) => setQuizAnswer(event.target.value)} placeholder="Type the missing word" disabled={quizSubmitted} onKeyDown={(event) => { if (event.key === "Enter") submitQuizAnswer(); }} />}{quizSubmitted && <div className={`quiz-feedback ${isCorrect ? "correct" : "incorrect"}`}><strong>{isCorrect ? "Correct" : `Answer: ${currentQuizQuestion.answer}`}</strong><span>{currentQuizQuestion.explanation}</span></div>}<div className="quiz-actions">{!quizSubmitted ? <button className="primary-button" onClick={submitQuizAnswer} disabled={!quizAnswer.trim()}>Check answer</button> : <button className="primary-button" onClick={nextQuizQuestion}>{quizIndex + 1 === quizQuestions.length ? "Finish" : "Next question"}<ArrowRight size={15} /></button>}</div></div>}
+            {currentQuizQuestion && !isFinished && <div className="quiz-question surface-panel"><div className="quiz-question-head"><span>Question {quizIndex + 1} of {quizQuestions.length}</span><span>{currentQuizQuestion.type === "multiple-choice" ? "Multiple choice" : "Fill in the blank"}</span></div><div className="quiz-progress"><span style={{ width: `${((quizIndex + 1) / quizQuestions.length) * 100}%` }} /></div><h2>{currentQuizQuestion.prompt}</h2>{currentQuizQuestion.type === "multiple-choice" ? <div className="quiz-options">{currentQuizQuestion.options?.map((option) => <button className={`quiz-option ${!quizSubmitted && option === quizAnswer ? "selected" : ""} ${quizSubmitted && option === currentQuizQuestion.answer ? "correct" : ""} ${quizSubmitted && option === quizAnswer && option !== currentQuizQuestion.answer ? "incorrect" : ""}`} key={option} onClick={() => { if (!quizSubmitted) setQuizAnswer(option); }} disabled={quizSubmitted}>{option}</button>)}</div> : <input className="quiz-answer-input" value={quizAnswer} onChange={(event) => setQuizAnswer(event.target.value)} placeholder="Type the missing word" disabled={quizSubmitted} onKeyDown={(event) => { if (event.key === "Enter") submitQuizAnswer(); }} />}{quizSubmitted && <div className={`quiz-feedback ${isCorrect ? "correct" : "incorrect"}`}><strong>{isCorrect ? "Correct" : `Correct answer: ${currentQuizQuestion.answer}`}</strong><span>{currentQuizQuestion.explanation || (quizAnswer.trim() ? "Keep practicing this word." : "The answer is shown above. Try to remember it for next time.")}</span></div>}<div className="quiz-actions">{!quizSubmitted ? <button className="primary-button" onClick={submitQuizAnswer}>Check answer</button> : <button className="primary-button" onClick={nextQuizQuestion}>{quizIndex + 1 === quizQuestions.length ? "Finish" : "Next question"}<ArrowRight size={15} /></button>}</div></div>}
         </section>;
     }
 
@@ -655,7 +661,7 @@ export default function FlashcardApp() {
             <div className="dashboard-grid">
                 <section className="review-stage" aria-label="Review session">
                     <div className="stage-head">
-                        <span className="eyebrow" style={{ color: "#aec2ba" }}>Today&apos;s review</span><button className="ghost-button quiz-launch-button" onClick={() => setShowQuiz(true)} disabled={!quizCards.length}><ListChecks size={14} /> Quiz</button>
+                        <span className="eyebrow" style={{ color: "#aec2ba" }}>{new Date(now).toLocaleDateString("en-US", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}</span><button className="ghost-button quiz-launch-button" onClick={() => setShowQuiz(true)} disabled={!quizCards.length}><ListChecks size={14} /> Quiz</button>
                         <div className="review-controls">
                             <label htmlFor="review-filter">Review set</label>
                             <select id="review-filter" value={selectedReviewFilter?.value ?? "all"} onChange={(event) => { setReviewFilter(event.target.value); setIsFlipped(false); }}>
