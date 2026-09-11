@@ -1840,14 +1840,28 @@ select.workspace-picker {
     background: var(--mint);
 }
 
+.quiz-option.selected {
+    border-color: var(--sage);
+    background: var(--mint);
+    color: var(--ink);
+    box-shadow: 0 0 0 2px rgba(143, 196, 173, .25);
+}
+
 .quiz-option.correct {
     border-color: var(--sage);
     background: #dcebe1;
+    color: #19332e;
 }
 
 .quiz-option.incorrect {
     border-color: #c77b62;
     background: #f4ddd2;
+    color: #4c241b;
+}
+
+.quiz-option:disabled {
+    cursor: default;
+    opacity: 1;
 }
 
 .quiz-answer-input {
