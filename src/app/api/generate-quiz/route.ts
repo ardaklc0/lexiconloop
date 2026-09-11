@@ -30,6 +30,8 @@ const containsQuizPhrase = (text: string, phrase: string) => {
     return new RegExp(`(^|[^\\p{L}\\p{N}])${escapeRegExp(normalizedPhrase)}(?=$|[^\\p{L}\\p{N}])`, "u").test(normalizedText);
 };
 
+const shuffle = <T,>(items: T[]) => [...items].sort(() => Math.random() - 0.5);
+
 export async function POST(request: Request) {
     const supabase = await createSupabaseServerClient();
     if (supabase) {
@@ -82,9 +84,15 @@ ${JSON.stringify(cards)}`;
                 if (!card.exampleSentence) return null;
                 const wordPattern = new RegExp(escapeRegExp(card.word.trim()), "iu");
                 if (!wordPattern.test(card.exampleSentence)) return null;
+                const distractors = shuffle(cards
+                    .map((item) => item.word?.trim())
+                    .filter((word): word is string => Boolean(word) && normalizeQuizText(word) !== normalizeQuizText(card.word))
+                ).slice(0, 3);
+                if (distractors.length < 3) return null;
                 return {
                     type: "fill-blank",
                     prompt: card.exampleSentence.replace(wordPattern, "_____"),
+                    options: shuffle([card.word.trim(), ...distractors]),
                     answer: card.word.trim(),
                     explanation: typeof question.explanation === "string" && question.explanation.trim() ? question.explanation.trim() : `${card.word.trim()} means ${card.meaning?.trim() || "the saved meaning"}.`,
                     word: card.word.trim(),
@@ -101,7 +109,7 @@ ${JSON.stringify(cards)}`;
             } satisfies QuizQuestion;
         }).filter((question): question is QuizQuestion => Boolean(question)).slice(0, questionCount) : [];
 
-        if (questions.length < 3) {
+        if (questions.length < Math.min(3, questionCount)) {
             return NextResponse.json({ error: "Gemini could not create enough quiz questions." }, { status: 502 });
         }
         return NextResponse.json({ questions });
