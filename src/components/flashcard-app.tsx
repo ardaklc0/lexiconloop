@@ -695,7 +695,7 @@ export default function FlashcardApp() {
             <div className="dashboard-grid">
                 <section className="review-stage" aria-label="Review session">
                     <div className="stage-head">
-                        <span className="eyebrow" style={{ color: "#aec2ba" }}>{new Date(now).toLocaleDateString("en-US", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}</span><button className="ghost-button quiz-launch-button" onClick={() => setShowQuiz(true)} disabled={!quizCards.length}><ListChecks size={14} /> Quiz</button>
+                        <div className="stage-progress"><span>{dueCount} cards remaining</span><div className="progress-track"><div className="progress-fill" style={{ width: `${Math.max(7, Math.min(100, ((reviewCards.length - dueCount) / Math.max(reviewCards.length, 1)) * 100))}%` }} /></div></div><button className="ghost-button quiz-launch-button" onClick={() => setShowQuiz(true)} disabled={!quizCards.length}><ListChecks size={14} /> Quiz</button>
                         <div className="review-controls">
                             <label htmlFor="review-filter">Review set</label>
                             <select id="review-filter" value={selectedReviewFilter?.value ?? "all"} onChange={(event) => { setReviewFilter(event.target.value); setIsFlipped(false); }}>
@@ -704,7 +704,6 @@ export default function FlashcardApp() {
                                 {reviewFilterOptions.some((option) => option.folderId) && <optgroup label="Folder">{reviewFilterOptions.filter((option) => option.folderId).map((option) => <option value={option.value} key={option.value}>{option.label}</option>)}</optgroup>}
                             </select>
                         </div>
-                        <div className="stage-progress"><span>{dueCount} cards remaining</span><div className="progress-track"><div className="progress-fill" style={{ width: `${Math.max(7, Math.min(100, ((reviewCards.length - dueCount) / Math.max(reviewCards.length, 1)) * 100))}%` }} /></div></div>
                     </div>
                     {currentCard ? <>
                         <div className="flashcard-wrap" onTouchStart={(event) => { const touch = event.changedTouches[0]; touchStart.current = touch ? { x: touch.clientX, y: touch.clientY } : null; }} onTouchEnd={(event) => { const touch = event.changedTouches[0]; const start = touchStart.current; touchStart.current = null; if (!start || !touch || !isFlipped) return; const deltaX = touch.clientX - start.x; const deltaY = touch.clientY - start.y; if (Math.abs(deltaX) > 65 && Math.abs(deltaX) > Math.abs(deltaY) * 1.25) handleReview(deltaX > 0 ? "good" : "forgot"); }} onTouchCancel={() => { touchStart.current = null; }}>
