@@ -1007,7 +1007,10 @@ select.workspace-picker {
 .word-main span {
     color: var(--muted);
     font-size: 11px;
-    overflow-wrap: anywhere;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .word-main {
@@ -1019,22 +1022,10 @@ select.workspace-picker {
     align-items: center;
     min-width: 0;
     gap: 8px;
-    padding-right: 36px;
-}
-
-.word-main {
-    position: relative;
     align-self: stretch;
     display: flex;
     flex-direction: column;
     justify-content: center;
-}
-
-.word-title .word-speaker {
-    position: absolute;
-    top: 50%;
-    right: 0;
-    transform: translateY(-50%);
 }
 
 .word-title strong {
@@ -1045,6 +1036,10 @@ select.workspace-picker {
 .word-speaker {
     width: 28px;
     height: 28px;
+}
+
+.row-actions .word-speaker {
+    flex: 0 0 auto;
 }
 
 .row-actions {
@@ -1667,15 +1662,6 @@ select.workspace-picker {
 
     .card-word-long {
         font-size: clamp(22px, 7vw, 34px);
-    }
-
-    .word-title {
-        padding-right: 0;
-    }
-
-    .word-title .word-speaker {
-        position: static;
-        transform: none;
     }
 
     .side-stack {
