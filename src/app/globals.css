@@ -644,6 +644,48 @@ select.workspace-picker {
     letter-spacing: -2.4px;
 }
 
+.card-word-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    min-width: 0;
+    min-height: 150px;
+}
+
+.card-word-row .card-word {
+    min-height: 0;
+}
+
+.card-word-row-answer {
+    justify-content: flex-start;
+    min-height: 0;
+    margin: 32px 0 22px;
+}
+
+.card-word-row-answer .card-word {
+    margin: 0;
+}
+
+.speaker-button {
+    display: grid;
+    flex: 0 0 auto;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border: 1px solid var(--line);
+    border-radius: 50%;
+    background: var(--mint);
+    color: var(--sage);
+}
+
+.speaker-button:hover {
+    border-color: var(--sage);
+    background: var(--sage);
+    color: var(--surface);
+}
+
 .card-word-long {
     font-size: clamp(24px, 4.5vw, 40px);
     letter-spacing: -1px;
@@ -970,6 +1012,23 @@ select.workspace-picker {
 
 .word-main {
     min-width: 0;
+}
+
+.word-title {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    gap: 8px;
+}
+
+.word-title strong {
+    min-width: 0;
+    flex: 1;
+}
+
+.word-speaker {
+    width: 28px;
+    height: 28px;
 }
 
 .row-actions {
