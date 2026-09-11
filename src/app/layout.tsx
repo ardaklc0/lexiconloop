@@ -5,6 +5,10 @@ export const metadata: Metadata = {
     title: "Lexicon Loop",
     description: "A calmer way to remember the words that matter.",
     manifest: "/manifest.webmanifest",
+    icons: {
+        icon: "/icon.svg",
+        apple: "/icon.svg",
+    },
     appleWebApp: {
         capable: true,
         statusBarStyle: "black-translucent",
