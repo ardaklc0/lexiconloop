@@ -91,6 +91,7 @@ type TranslationResult = {
     meaning: string;
     definition: string;
     partOfSpeech: string;
+    cefrLevel: CefrLevel;
     sourceExample: string;
     targetExample: string;
     wordFamily: TranslationItem[];
@@ -217,6 +218,8 @@ export default function FlashcardApp() {
     const [translationResult, setTranslationResult] = useState<TranslationResult | null>(null);
     const [translationLoading, setTranslationLoading] = useState(false);
     const [translationStatus, setTranslationStatus] = useState("");
+    const [translationSaveState, setTranslationSaveState] = useState<"idle" | "saving" | "saved">("idle");
+    const [relatedSaveStates, setRelatedSaveStates] = useState<Record<string, "saving" | "saved">>({});
     const [form, setForm] = useState<WordForm>({ word: "", meaning: "", exampleSentence: "", folderId: "", sourceLanguage: "German", targetLanguage: "Turkish", cefrLevel: "", notes: "" });
     const touchStart = useRef<{ x: number; y: number } | null>(null);
     const supabaseRef = useRef<ReturnType<typeof createSupabaseBrowserClient>>(null);
@@ -743,6 +746,8 @@ export default function FlashcardApp() {
         setTranslationLoading(true);
         setTranslationResult(null);
         setTranslationStatus("");
+        setTranslationSaveState("idle");
+        setRelatedSaveStates({});
         try {
             const response = await fetch("/api/generate-translation", {
                 method: "POST",
@@ -756,6 +761,136 @@ export default function FlashcardApp() {
             setTranslationStatus(error instanceof Error ? error.message : "Could not analyze this word.");
         } finally {
             setTranslationLoading(false);
+        }
+    }
+
+    const translationSaveKey = (word: string, relation: "synonym" | "antonym") => `${relation}:${word.trim().toLocaleLowerCase()}`;
+
+    async function saveTranslationCard(input: {
+        word: string;
+        meaning: string;
+        sourceExample: string;
+        cefrLevel: CefrLevel;
+        sourceLanguage: string;
+        targetLanguage: string;
+        notes?: string;
+        saveKey: "main" | string;
+    }) {
+        const cloud = getCloudContext();
+        if (!cloud) {
+            setTranslationStatus("Supabase is required to save a translated word.");
+            if (input.saveKey === "main") setTranslationSaveState("idle");
+            else setRelatedSaveStates((previous) => ({ ...previous, [input.saveKey]: "saved" }));
+            return;
+        }
+
+        const duplicate = cards.find((card) => card.word.trim().toLocaleLowerCase() === input.word.trim().toLocaleLowerCase() && card.sourceLanguage === input.sourceLanguage && card.targetLanguage === input.targetLanguage);
+        if (duplicate) {
+            setTranslationStatus(`"${input.word}" is already in your vocabulary.`);
+            if (input.saveKey === "main") setTranslationSaveState("saved");
+            else setRelatedSaveStates((previous) => ({ ...previous, [input.saveKey]: "saved" }));
+            return;
+        }
+
+        if (input.saveKey === "main") setTranslationSaveState("saving");
+        else setRelatedSaveStates((previous) => ({ ...previous, [input.saveKey]: "saving" }));
+
+        try {
+            setSyncStatus("Saving translated word...");
+            const created = await insertWord(cloud.client, cloud.userId, cloud.workspaceId, {
+                word: input.word.trim(),
+                meaning: input.meaning.trim(),
+                exampleSentence: input.sourceExample.trim(),
+                folderId: "",
+                sourceLanguage: input.sourceLanguage,
+                targetLanguage: input.targetLanguage,
+                cefrLevel: input.cefrLevel,
+                notes: input.notes,
+            });
+            const createdAt = created.createdAt;
+            setCards((previous) => [{
+                id: created.id,
+                word: input.word.trim(),
+                meaning: input.meaning.trim(),
+                exampleSentence: input.sourceExample.trim(),
+                folderId: "",
+                sourceLanguage: input.sourceLanguage,
+                targetLanguage: input.targetLanguage,
+                cefrLevel: input.cefrLevel,
+                notes: input.notes,
+                createdAt,
+                state: "new",
+                stability: 0.25,
+                difficulty: 5,
+                dueAt: createdAt,
+                reps: 0,
+                lapses: 0,
+            }, ...previous]);
+            setSyncStatus("Synced");
+            setTranslationStatus(`"${input.word}" was added to your vocabulary.`);
+            if (input.saveKey === "main") setTranslationSaveState("saved");
+            else setRelatedSaveStates((previous) => ({ ...previous, [input.saveKey]: "saved" }));
+        } catch (error) {
+            setSyncStatus(error instanceof Error ? error.message : "Translated word could not be saved.");
+            setTranslationStatus(error instanceof Error ? error.message : "Translated word could not be saved.");
+            if (input.saveKey === "main") setTranslationSaveState("idle");
+            else setRelatedSaveStates((previous) => {
+                const next = { ...previous };
+                delete next[input.saveKey];
+                return next;
+            });
+        }
+    }
+
+    async function saveMainTranslation() {
+        if (!translationResult || translationSaveState !== "idle") return;
+        await saveTranslationCard({
+            word: translationResult.word,
+            meaning: translationResult.meaning,
+            sourceExample: translationResult.sourceExample,
+            cefrLevel: translationResult.cefrLevel,
+            sourceLanguage: translationResult.sourceLanguage,
+            targetLanguage: translationResult.targetLanguage,
+            saveKey: "main",
+        });
+    }
+
+    async function saveRelatedTranslation(item: TranslationItem, relation: "synonym" | "antonym") {
+        if (!translationResult) return;
+        const saveKey = translationSaveKey(item.word, relation);
+        if (relatedSaveStates[saveKey]) return;
+        const duplicate = cards.some((card) => card.word.trim().toLocaleLowerCase() === item.word.trim().toLocaleLowerCase() && card.sourceLanguage === translationResult.sourceLanguage && card.targetLanguage === translationResult.targetLanguage);
+        if (duplicate) {
+            setRelatedSaveStates((previous) => ({ ...previous, [saveKey]: "saved" }));
+            setTranslationStatus(`"${item.word}" is already in your vocabulary.`);
+            return;
+        }
+        setRelatedSaveStates((previous) => ({ ...previous, [saveKey]: "saving" }));
+        try {
+            const response = await fetch("/api/generate-related-word", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ sourceLanguage: translationResult.sourceLanguage, targetLanguage: translationResult.targetLanguage, word: item.word, meaning: item.translation, relation }),
+            });
+            const data = await response.json() as { meaning?: string; sourceExample?: string; cefrLevel?: CefrLevel; error?: string };
+            if (!response.ok || !data.sourceExample || !data.cefrLevel) throw new Error(data.error ?? "Could not prepare this related word.");
+            await saveTranslationCard({
+                word: item.word,
+                meaning: data.meaning?.trim() || item.translation,
+                sourceExample: data.sourceExample,
+                cefrLevel: data.cefrLevel,
+                sourceLanguage: translationResult.sourceLanguage,
+                targetLanguage: translationResult.targetLanguage,
+                notes: `${relation === "synonym" ? "Synonym" : "Antonym"} of ${translationResult.word}`,
+                saveKey,
+            });
+        } catch (error) {
+            setTranslationStatus(error instanceof Error ? error.message : "Related word could not be saved.");
+            setRelatedSaveStates((previous) => {
+                const next = { ...previous };
+                delete next[saveKey];
+                return next;
+            });
         }
     }
 
@@ -783,9 +918,13 @@ export default function FlashcardApp() {
         </section>;
     }
 
-    function renderTranslationItems(items: TranslationItem[], emptyLabel: string) {
+    function renderTranslationItems(items: TranslationItem[], emptyLabel: string, relation?: "synonym" | "antonym") {
         if (!items.length) return <p className="translation-empty">{emptyLabel}</p>;
-        return <div className="translation-items">{items.map((item) => <div className="translation-item" key={`${item.word}-${item.translation}`}><div><strong>{item.word}</strong>{item.category && <span>{item.category}</span>}</div><span>{item.translation}</span></div>)}</div>;
+        return <div className="translation-items">{items.map((item) => {
+            const saveKey = relation ? translationSaveKey(item.word, relation) : "";
+            const saveState = relation ? relatedSaveStates[saveKey] : undefined;
+            return <div className={`translation-item ${relation ? "translation-item-action" : ""}`} key={`${item.word}-${item.translation}`}><div><strong>{item.word}</strong>{item.category && <span>{item.category}</span>}</div><span>{item.translation}</span>{relation && <button type="button" className="icon-button translation-save-button" onClick={() => void saveRelatedTranslation(item, relation)} disabled={saveState === "saving" || saveState === "saved"} aria-label={`${saveState === "saved" ? "Saved" : "Add"} ${item.word}`}>{saveState === "saved" ? <Check size={14} /> : <CirclePlus size={14} />}</button>}</div>;
+        })}</div>;
     }
 
     function renderLearningDetails(result: TranslationResult) {
@@ -816,7 +955,7 @@ export default function FlashcardApp() {
             </section>
             {!result && !translationLoading && !translationStatus && <section className="translate-empty surface-panel"><Sparkles size={28} /><h2>Start with a word.</h2><p>The result stays on this screen and is never saved to your vocabulary.</p></section>}
             {translationLoading && <section className="translate-empty surface-panel"><Sparkles size={28} /><h2>Reading the word...</h2><p>Gemini 2.5 Flash is preparing a focused language breakdown.</p></section>}
-            {result && <div className="translation-results"><section className="translation-hero surface-panel"><div><div className="eyebrow">{result.sourceLanguage} → {result.targetLanguage}</div><h2>{result.word}</h2><p className="translation-meaning">{result.meaning}</p><p>{result.definition}</p></div><div className="translation-meta"><span>{result.partOfSpeech || "Word"}</span><button type="button" className="speaker-button" onClick={() => speakWord(result.word, result.sourceLanguage)} aria-label={`Pronounce ${result.word}`}><Volume2 size={17} /></button></div></section><div className="translation-grid"><section className="surface-panel translation-section translation-primary-section"><div className="panel-heading"><div><h2>Examples</h2><p className="panel-subtitle">Same idea in both languages</p></div><Languages size={17} color="var(--sage)" /></div><div className="translation-example"><span>{result.sourceLanguage}</span><p>{result.sourceExample}</p></div><div className="translation-example"><span>{result.targetLanguage}</span><p>{result.targetExample}</p></div></section><section className="surface-panel translation-section translation-primary-section"><div className="panel-heading"><div><h2>Word family</h2><p className="panel-subtitle">Related forms in the source language</p></div><BookOpenCheck size={17} color="var(--sage)" /></div><div className="translation-family-list">{renderTranslationItems(result.wordFamily, "No related forms were returned.")}</div></section><section className="surface-panel translation-section"><div className="panel-heading"><div><h2>Synonyms</h2><p className="panel-subtitle">Close alternatives</p></div></div>{renderTranslationItems(result.synonyms, "No synonyms were returned.")}</section><section className="surface-panel translation-section"><div className="panel-heading"><div><h2>Antonyms</h2><p className="panel-subtitle">Contrasting meanings</p></div></div>{renderTranslationItems(result.antonyms, "No antonyms were returned.")}</section></div>{renderLearningDetails(result)}<section className="surface-panel etymology-section"><div className="panel-heading"><div><h2>Etymology</h2><p className="panel-subtitle">AI-generated root information</p></div><span className="state-tag state-review">{result.etymology.confidence || "unknown"}</span></div>{result.etymology.explanation ? <div className="etymology-copy"><div className="etymology-root"><span>Root</span><strong>{result.etymology.root || "Not available"}</strong><small>{result.etymology.rootLanguage || "Unknown language"}{result.etymology.rootMeaning ? ` · ${result.etymology.rootMeaning}` : ""}</small></div><p>{result.etymology.explanation}</p></div> : <p className="translation-empty-inline">No reliable etymological information was returned for this word.</p>}</section></div>}
+            {result && <div className="translation-results"><section className="translation-hero surface-panel"><div><div className="eyebrow">{result.sourceLanguage} → {result.targetLanguage}</div><h2>{result.word}</h2><p className="translation-meaning">{result.meaning}</p><p>{result.definition}</p></div><div className="translation-meta"><span>{result.partOfSpeech || "Word"}</span><button type="button" className="speaker-button" onClick={() => speakWord(result.word, result.sourceLanguage)} aria-label={`Pronounce ${result.word}`}><Volume2 size={17} /></button><button type="button" className="icon-button translation-save-button" onClick={() => void saveMainTranslation()} disabled={translationSaveState !== "idle"} aria-label={`${translationSaveState === "saved" ? "Saved" : "Add"} ${result.word}`}>{translationSaveState === "saved" ? <Check size={15} /> : <CirclePlus size={15} />}</button></div></section><div className="translation-grid"><section className="surface-panel translation-section translation-primary-section"><div className="panel-heading"><div><h2>Examples</h2><p className="panel-subtitle">Same idea in both languages · {result.cefrLevel}</p></div><Languages size={17} color="var(--sage)" /></div><div className="translation-example"><span>{result.sourceLanguage}</span><p>{result.sourceExample}</p></div><div className="translation-example"><span>{result.targetLanguage}</span><p>{result.targetExample}</p></div></section><section className="surface-panel translation-section translation-primary-section"><div className="panel-heading"><div><h2>Word family</h2><p className="panel-subtitle">Related forms in the source language</p></div><BookOpenCheck size={17} color="var(--sage)" /></div><div className="translation-family-list">{renderTranslationItems(result.wordFamily, "No related forms were returned.")}</div></section><section className="surface-panel translation-section"><div className="panel-heading"><div><h2>Synonyms</h2><p className="panel-subtitle">Close alternatives · add as cards</p></div></div>{renderTranslationItems(result.synonyms, "No synonyms were returned.", "synonym")}</section><section className="surface-panel translation-section"><div className="panel-heading"><div><h2>Antonyms</h2><p className="panel-subtitle">Contrasting meanings · add as cards</p></div></div>{renderTranslationItems(result.antonyms, "No antonyms were returned.", "antonym")}</section></div>{renderLearningDetails(result)}<section className="surface-panel etymology-section"><div className="panel-heading"><div><h2>Etymology</h2><p className="panel-subtitle">AI-generated root information</p></div><span className="state-tag state-review">{result.etymology.confidence || "unknown"}</span></div>{result.etymology.explanation ? <div className="etymology-copy"><div className="etymology-root"><span>Root</span><strong>{result.etymology.root || "Not available"}</strong><small>{result.etymology.rootLanguage || "Unknown language"}{result.etymology.rootMeaning ? ` · ${result.etymology.rootMeaning}` : ""}</small></div><p>{result.etymology.explanation}</p></div> : <p className="translation-empty-inline">No reliable etymological information was returned for this word.</p>}</section></div>}
         </div>;
     }
 

@@ -33,6 +33,7 @@ type TranslationResult = {
     meaning?: string;
     definition?: string;
     partOfSpeech?: string;
+    cefrLevel?: string;
     sourceExample?: string;
     targetExample?: string;
     wordFamily?: LanguageItem[];
@@ -130,11 +131,12 @@ TARGET LANGUAGE: ${targetLanguage}
 WORD: "${word}"
 
 Analyze the word for a learner. Return only valid JSON with exactly this shape:
-{"sourceLanguage":"...","targetLanguage":"...","word":"...","meaning":"...","definition":"...","partOfSpeech":"...","sourceExample":"...","targetExample":"...","wordFamily":[{"word":"...","translation":"...","category":"..."}],"synonyms":[{"word":"...","translation":"...","category":"..."}],"antonyms":[{"word":"...","translation":"...","category":"..."}],"usage":{"formal":"...","everyday":"...","academic":"...","whenToUse":"..."},"commonMistakes":[{"incorrect":"...","correct":"...","explanation":"..."}],"collocations":[{"phrase":"...","translation":"...","example":"..."}],"dialogue":[{"speaker":"A","source":"...","target":"..."}],"wordForms":[{"word":"...","translation":"...","category":"noun|verb|adjective|adverb"}],"etymology":{"rootLanguage":"...","root":"...","rootMeaning":"...","explanation":"...","confidence":"high|medium|low|unknown"}}
+{"sourceLanguage":"...","targetLanguage":"...","word":"...","meaning":"...","definition":"...","partOfSpeech":"...","cefrLevel":"A1|A2|B1|B2|C1","sourceExample":"...","targetExample":"...","wordFamily":[{"word":"...","translation":"...","category":"..."}],"synonyms":[{"word":"...","translation":"...","category":"..."}],"antonyms":[{"word":"...","translation":"...","category":"..."}],"usage":{"formal":"...","everyday":"...","academic":"...","whenToUse":"..."},"commonMistakes":[{"incorrect":"...","correct":"...","explanation":"..."}],"collocations":[{"phrase":"...","translation":"...","example":"..."}],"dialogue":[{"speaker":"A","source":"...","target":"..."}],"wordForms":[{"word":"...","translation":"...","category":"noun|verb|adjective|adverb"}],"etymology":{"rootLanguage":"...","root":"...","rootMeaning":"...","explanation":"...","confidence":"high|medium|low|unknown"}}
 
 Rules:
 - meaning, definition, translations, and targetExample must be written only in TARGET LANGUAGE.
 - sourceExample must be written only in SOURCE LANGUAGE and naturally use WORD.
+- cefrLevel must be exactly one of A1, A2, B1, B2, or C1 and must describe WORD in SOURCE LANGUAGE.
 - wordFamily must contain related words from SOURCE LANGUAGE, not random translations or unrelated words. Include forms such as derived nouns, adjectives, or close morphological relatives when they exist.
 - synonyms and antonyms must be words from SOURCE LANGUAGE; translate each one into TARGET LANGUAGE.
 - usage must explain the word separately in formal, everyday, and academic contexts, plus whenToUse; write explanations in TARGET LANGUAGE.
@@ -156,6 +158,7 @@ Rules:
             meaning: asText(parsed.meaning),
             definition: asText(parsed.definition),
             partOfSpeech: asText(parsed.partOfSpeech),
+            cefrLevel: ["A1", "A2", "B1", "B2", "C1"].includes(asText(parsed.cefrLevel)) ? asText(parsed.cefrLevel) : "B1",
             sourceExample: asText(parsed.sourceExample),
             targetExample: asText(parsed.targetExample),
             wordFamily: asItems(parsed.wordFamily),

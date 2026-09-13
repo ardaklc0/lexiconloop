@@ -1961,6 +1961,10 @@ select.workspace-picker {
     min-width: 0;
 }
 
+.translation-item-action {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+}
+
 .translation-item:last-child {
     border-bottom: 0;
 }
@@ -1979,6 +1983,16 @@ select.workspace-picker {
 .translation-item div {
     min-width: 0;
     overflow-wrap: anywhere;
+}
+
+.translation-save-button {
+    align-self: start;
+    color: var(--sage);
+    flex: 0 0 auto;
+}
+
+.translation-save-button:disabled {
+    opacity: .75;
 }
 
 .translation-item div span {
