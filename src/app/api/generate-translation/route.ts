@@ -8,6 +8,24 @@ type LanguageItem = {
     category?: string;
 };
 
+type MistakeItem = {
+    incorrect?: string;
+    correct?: string;
+    explanation?: string;
+};
+
+type CollocationItem = {
+    phrase?: string;
+    translation?: string;
+    example?: string;
+};
+
+type DialogueLine = {
+    speaker?: string;
+    source?: string;
+    target?: string;
+};
+
 type TranslationResult = {
     sourceLanguage?: string;
     targetLanguage?: string;
@@ -20,6 +38,16 @@ type TranslationResult = {
     wordFamily?: LanguageItem[];
     synonyms?: LanguageItem[];
     antonyms?: LanguageItem[];
+    usage?: {
+        formal?: string;
+        everyday?: string;
+        academic?: string;
+        whenToUse?: string;
+    };
+    commonMistakes?: MistakeItem[];
+    collocations?: CollocationItem[];
+    dialogue?: DialogueLine[];
+    wordForms?: LanguageItem[];
     etymology?: {
         rootLanguage?: string;
         root?: string;
@@ -39,6 +67,39 @@ const asItems = (value: unknown) => Array.isArray(value)
         if (!word || !translation) return null;
         return { word, translation, category: asText(candidate.category) || undefined };
     }).filter((item): item is LanguageItem => item !== null).slice(0, 12)
+    : [];
+const asMistakes = (value: unknown) => Array.isArray(value)
+    ? value.map((item): MistakeItem | null => {
+        if (!item || typeof item !== "object") return null;
+        const candidate = item as MistakeItem;
+        const incorrect = asText(candidate.incorrect);
+        const correct = asText(candidate.correct);
+        const explanation = asText(candidate.explanation);
+        if (!incorrect || !correct || !explanation) return null;
+        return { incorrect, correct, explanation };
+    }).filter((item): item is MistakeItem => item !== null).slice(0, 6)
+    : [];
+const asCollocations = (value: unknown) => Array.isArray(value)
+    ? value.map((item): CollocationItem | null => {
+        if (!item || typeof item !== "object") return null;
+        const candidate = item as CollocationItem;
+        const phrase = asText(candidate.phrase);
+        const translation = asText(candidate.translation);
+        const example = asText(candidate.example);
+        if (!phrase || !translation || !example) return null;
+        return { phrase, translation, example };
+    }).filter((item): item is CollocationItem => item !== null).slice(0, 8)
+    : [];
+const asDialogue = (value: unknown) => Array.isArray(value)
+    ? value.map((item): DialogueLine | null => {
+        if (!item || typeof item !== "object") return null;
+        const candidate = item as DialogueLine;
+        const speaker = asText(candidate.speaker);
+        const source = asText(candidate.source);
+        const target = asText(candidate.target);
+        if (!speaker || !source || !target) return null;
+        return { speaker, source, target };
+    }).filter((item): item is DialogueLine => item !== null).slice(0, 6)
     : [];
 
 export async function POST(request: Request) {
@@ -69,13 +130,18 @@ TARGET LANGUAGE: ${targetLanguage}
 WORD: "${word}"
 
 Analyze the word for a learner. Return only valid JSON with exactly this shape:
-{"sourceLanguage":"...","targetLanguage":"...","word":"...","meaning":"...","definition":"...","partOfSpeech":"...","sourceExample":"...","targetExample":"...","wordFamily":[{"word":"...","translation":"...","category":"..."}],"synonyms":[{"word":"...","translation":"...","category":"..."}],"antonyms":[{"word":"...","translation":"...","category":"..."}],"etymology":{"rootLanguage":"...","root":"...","rootMeaning":"...","explanation":"...","confidence":"high|medium|low|unknown"}}
+{"sourceLanguage":"...","targetLanguage":"...","word":"...","meaning":"...","definition":"...","partOfSpeech":"...","sourceExample":"...","targetExample":"...","wordFamily":[{"word":"...","translation":"...","category":"..."}],"synonyms":[{"word":"...","translation":"...","category":"..."}],"antonyms":[{"word":"...","translation":"...","category":"..."}],"usage":{"formal":"...","everyday":"...","academic":"...","whenToUse":"..."},"commonMistakes":[{"incorrect":"...","correct":"...","explanation":"..."}],"collocations":[{"phrase":"...","translation":"...","example":"..."}],"dialogue":[{"speaker":"A","source":"...","target":"..."}],"wordForms":[{"word":"...","translation":"...","category":"noun|verb|adjective|adverb"}],"etymology":{"rootLanguage":"...","root":"...","rootMeaning":"...","explanation":"...","confidence":"high|medium|low|unknown"}}
 
 Rules:
 - meaning, definition, translations, and targetExample must be written only in TARGET LANGUAGE.
 - sourceExample must be written only in SOURCE LANGUAGE and naturally use WORD.
 - wordFamily must contain related words from SOURCE LANGUAGE, not random translations or unrelated words. Include forms such as derived nouns, adjectives, or close morphological relatives when they exist.
 - synonyms and antonyms must be words from SOURCE LANGUAGE; translate each one into TARGET LANGUAGE.
+- usage must explain the word separately in formal, everyday, and academic contexts, plus whenToUse; write explanations in TARGET LANGUAGE.
+- commonMistakes must contain common SOURCE LANGUAGE errors, their corrected forms, and explanations in TARGET LANGUAGE. Use an empty list when there are no useful mistakes.
+- collocations must contain natural SOURCE LANGUAGE phrases, their TARGET LANGUAGE translations, and SOURCE LANGUAGE example sentences.
+- dialogue must contain 2-6 short natural lines; source is SOURCE LANGUAGE and target is its TARGET LANGUAGE translation.
+- wordForms must show meaningful noun, verb, adjective, and adverb forms from SOURCE LANGUAGE when they exist, with TARGET LANGUAGE translations and a category. Use an empty list when a form does not exist.
 - If WORD is not in SOURCE LANGUAGE, say so briefly in definition and do not silently replace it with another word.
 - Give etymology only when you know it. Never invent a root. For uncertain or unavailable information, use empty strings and confidence "unknown".
 - Keep lists concise: up to 8 word-family items, 6 synonyms, and 6 antonyms.
@@ -95,6 +161,16 @@ Rules:
             wordFamily: asItems(parsed.wordFamily),
             synonyms: asItems(parsed.synonyms),
             antonyms: asItems(parsed.antonyms),
+            usage: parsed.usage && typeof parsed.usage === "object" ? {
+                formal: asText(parsed.usage.formal),
+                everyday: asText(parsed.usage.everyday),
+                academic: asText(parsed.usage.academic),
+                whenToUse: asText(parsed.usage.whenToUse),
+            } : undefined,
+            commonMistakes: asMistakes(parsed.commonMistakes),
+            collocations: asCollocations(parsed.collocations),
+            dialogue: asDialogue(parsed.dialogue),
+            wordForms: asItems(parsed.wordForms),
             etymology: parsed.etymology && typeof parsed.etymology === "object" ? {
                 rootLanguage: asText(parsed.etymology.rootLanguage),
                 root: asText(parsed.etymology.root),
