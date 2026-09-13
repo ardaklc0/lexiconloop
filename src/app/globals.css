@@ -1796,6 +1796,218 @@ select.workspace-picker {
     font-size: 13px;
 }
 
+.translate-page {
+    display: grid;
+    gap: 16px;
+}
+
+.translate-search {
+    display: grid;
+    grid-template-columns: minmax(220px, .8fr) minmax(320px, 1.2fr);
+    gap: 30px;
+    align-items: end;
+    padding: 24px;
+}
+
+.translate-search-copy h2,
+.translate-empty h2 {
+    margin: 0;
+    font-family: Fraunces, serif;
+    font-size: 27px;
+}
+
+.translate-search-copy p,
+.translate-empty p {
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.55;
+    margin: 8px 0 0;
+}
+
+.translate-empty {
+    display: grid;
+    place-items: center;
+    min-height: 190px;
+    text-align: center;
+    color: var(--sage);
+    padding: 30px;
+}
+
+.translate-empty h2 {
+    margin-top: 13px;
+    color: var(--ink);
+    font-size: 24px;
+}
+
+.translate-empty p {
+    max-width: 320px;
+}
+
+.translation-results {
+    display: grid;
+    gap: 16px;
+}
+
+.translation-hero {
+    display: flex;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 25px;
+}
+
+.translation-hero h2 {
+    margin: 4px 0 5px;
+    font-family: Fraunces, serif;
+    font-size: 34px;
+    overflow-wrap: anywhere;
+}
+
+.translation-hero p {
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.55;
+    margin: 0;
+    max-width: 650px;
+}
+
+.translation-hero .translation-meaning {
+    color: var(--sage);
+    font-family: Fraunces, serif;
+    font-size: 20px;
+    margin-bottom: 7px;
+}
+
+.translation-meta {
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+}
+
+.translation-meta>span {
+    background: var(--mint);
+    border-radius: 5px;
+    color: var(--sage);
+    font-family: "DM Mono", monospace;
+    font-size: 9px;
+    padding: 6px 8px;
+    text-transform: uppercase;
+}
+
+.translation-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+}
+
+.translation-section,
+.etymology-section {
+    padding: 20px;
+}
+
+.translation-example {
+    border-left: 2px solid var(--sage);
+    margin-top: 14px;
+    padding-left: 12px;
+}
+
+.translation-example span,
+.etymology-root span {
+    color: var(--muted);
+    font-family: "DM Mono", monospace;
+    font-size: 9px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
+
+.translation-example p {
+    color: var(--ink);
+    font-size: 13px;
+    line-height: 1.55;
+    margin: 5px 0 0;
+}
+
+.translation-items {
+    display: grid;
+    gap: 2px;
+}
+
+.translation-item {
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    border-bottom: 1px solid var(--line);
+    padding: 10px 0;
+}
+
+.translation-item:last-child {
+    border-bottom: 0;
+}
+
+.translation-item strong,
+.translation-item>span {
+    font-size: 12px;
+}
+
+.translation-item>span {
+    color: var(--muted);
+    text-align: right;
+}
+
+.translation-item div {
+    min-width: 0;
+}
+
+.translation-item div span {
+    color: var(--muted);
+    display: block;
+    font-size: 10px;
+    margin-top: 3px;
+}
+
+.translation-empty,
+.translation-empty-inline {
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.translation-empty-inline {
+    margin: 0;
+}
+
+.etymology-copy {
+    display: grid;
+    grid-template-columns: minmax(150px, .35fr) 1fr;
+    gap: 22px;
+    align-items: start;
+}
+
+.etymology-root strong,
+.etymology-root small {
+    display: block;
+}
+
+.etymology-root strong {
+    font-family: Fraunces, serif;
+    font-size: 20px;
+    margin-top: 7px;
+    overflow-wrap: anywhere;
+}
+
+.etymology-root small {
+    color: var(--muted);
+    font-size: 10px;
+    line-height: 1.4;
+    margin-top: 5px;
+}
+
+.etymology-copy>p {
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.6;
+    margin: 0;
+}
+
 @media (max-width: 920px) {
     .sidebar {
         width: 210px;
@@ -1835,6 +2047,10 @@ select.workspace-picker {
     }
 
     .stats-breakdown-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .translate-search {
         grid-template-columns: 1fr;
     }
 }
@@ -2053,7 +2269,7 @@ select.workspace-picker {
         background: rgba(255, 253, 248, .96);
         border-top: 1px solid var(--line);
         display: grid;
-        grid-template-columns: repeat(5, 1fr);
+        grid-template-columns: repeat(6, 1fr);
         padding: 7px 6px env(safe-area-inset-bottom);
     }
 
@@ -2082,6 +2298,18 @@ select.workspace-picker {
         border-radius: 50%;
         padding: 5px;
         display: grid;
+    }
+
+    .translation-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .translation-hero {
+        flex-direction: column;
+    }
+
+    .etymology-copy {
+        grid-template-columns: 1fr;
     }
 }
 

@@ -33,7 +33,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { deleteFolder, deleteWord, deleteWorkspace, insertFolder, insertWord, insertWorkspace, loadUserData, loadWorkspaces, saveReview, updateFolder, updateWord } from "@/lib/supabase/data";
 import type { CardState, CefrLevel, Folder, ReviewLog, ReviewRating, WordRecord, Workspace } from "@/lib/types";
 
-type View = "review" | "words" | "folders" | "statistics" | "settings" | "add" | "add-folder" | "word-detail";
+type View = "review" | "words" | "translate" | "folders" | "statistics" | "settings" | "add" | "add-folder" | "word-detail";
 type Filter = "all" | CardState;
 type ReviewFilterOption = {
     value: string;
@@ -60,12 +60,40 @@ type QuizQuestion = {
     word: string;
 };
 
+type TranslationItem = {
+    word: string;
+    translation: string;
+    category?: string;
+};
+
+type TranslationResult = {
+    sourceLanguage: string;
+    targetLanguage: string;
+    word: string;
+    meaning: string;
+    definition: string;
+    partOfSpeech: string;
+    sourceExample: string;
+    targetExample: string;
+    wordFamily: TranslationItem[];
+    synonyms: TranslationItem[];
+    antonyms: TranslationItem[];
+    etymology: {
+        rootLanguage?: string;
+        root?: string;
+        rootMeaning?: string;
+        explanation?: string;
+        confidence?: string;
+    };
+};
+
 const languageOptions = ["German", "Turkish", "English", "French"];
 const cefrLevels: CefrLevel[] = ["A1", "A2", "B1", "B2", "C1"];
 
 const navItems: Array<{ id: View; label: string; icon: typeof BookOpenCheck }> = [
     { id: "review", label: "Review", icon: BookOpenCheck },
     { id: "words", label: "Words", icon: Languages },
+    { id: "translate", label: "Translate", icon: Sparkles },
     { id: "folders", label: "Folders", icon: FolderOpen },
     { id: "statistics", label: "Statistics", icon: BarChart3 },
 ];
@@ -73,6 +101,7 @@ const navItems: Array<{ id: View; label: string; icon: typeof BookOpenCheck }> =
 const titleForView: Record<View, string> = {
     review: "Hello there",
     words: "Your vocabulary",
+    translate: "Translate a word",
     folders: "Your collections",
     statistics: "A little progress",
     settings: "Your preferences",
@@ -86,6 +115,7 @@ const subtitleForView: Record<View, string> = {
     "add-folder": "Keep a small set of related words together.",
     review: "A few deliberate minutes is enough for today.",
     words: "Every word has a place in your memory.",
+    translate: "Explore a word before it enters your memory.",
     folders: "Keep related words close together.",
     statistics: "Small repetitions become visible over time.",
     settings: "Make the rhythm fit your day.",
@@ -153,6 +183,12 @@ export default function FlashcardApp() {
     const [showQuiz, setShowQuiz] = useState(false);
     const [quizCount, setQuizCount] = useState(5);
     const [quizSource, setQuizSource] = useState<"recent" | "random">("recent");
+    const [translateSourceLanguage, setTranslateSourceLanguage] = useState("German");
+    const [translateTargetLanguage, setTranslateTargetLanguage] = useState("English");
+    const [translateWord, setTranslateWord] = useState("");
+    const [translationResult, setTranslationResult] = useState<TranslationResult | null>(null);
+    const [translationLoading, setTranslationLoading] = useState(false);
+    const [translationStatus, setTranslationStatus] = useState("");
     const [form, setForm] = useState<WordForm>({ word: "", meaning: "", exampleSentence: "", folderId: "", sourceLanguage: "German", targetLanguage: "Turkish", cefrLevel: "", notes: "" });
     const touchStart = useRef<{ x: number; y: number } | null>(null);
     const supabaseRef = useRef<ReturnType<typeof createSupabaseBrowserClient>>(null);
@@ -374,6 +410,13 @@ export default function FlashcardApp() {
 
     useEffect(() => {
         if (activeView !== "review") setShowQuiz(false);
+    }, [activeView]);
+
+    useEffect(() => {
+        if (activeView !== "translate") {
+            setTranslationResult(null);
+            setTranslationStatus("");
+        }
     }, [activeView]);
 
     useEffect(() => {
@@ -665,6 +708,29 @@ export default function FlashcardApp() {
         }
     }
 
+    async function generateTranslation(event: React.FormEvent<HTMLFormElement>) {
+        event.preventDefault();
+        const word = translateWord.trim();
+        if (!word) return;
+        setTranslationLoading(true);
+        setTranslationResult(null);
+        setTranslationStatus("");
+        try {
+            const response = await fetch("/api/generate-translation", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ sourceLanguage: translateSourceLanguage, targetLanguage: translateTargetLanguage, word }),
+            });
+            const data = await response.json() as TranslationResult & { error?: string };
+            if (!response.ok) throw new Error(data.error ?? "Translation failed.");
+            setTranslationResult(data);
+        } catch (error) {
+            setTranslationStatus(error instanceof Error ? error.message : "Could not analyze this word.");
+        } finally {
+            setTranslationLoading(false);
+        }
+    }
+
     function submitQuizAnswer() {
         if (!currentQuizQuestion) return;
         setQuizSubmitted(true);
@@ -687,6 +753,28 @@ export default function FlashcardApp() {
             {isFinished && <div className="quiz-empty surface-panel"><Check size={30} /><h2>Quiz complete</h2><p>You finished {quizQuestions.length} questions. A fresh set will use your current review queue.</p><button className="ghost-button" onClick={() => void generateQuiz()}>Try another set</button></div>}
             {currentQuizQuestion && !isFinished && <div className="quiz-question surface-panel"><div className="quiz-question-head"><span>Question {quizIndex + 1} of {quizQuestions.length}</span><span>{currentQuizQuestion.type === "multiple-choice" ? "Multiple choice" : "Fill in the blank"}</span></div><div className="quiz-progress"><span style={{ width: `${((quizIndex + 1) / quizQuestions.length) * 100}%` }} /></div><h2>{currentQuizQuestion.prompt}</h2><div className="quiz-options">{currentQuizQuestion.options?.map((option) => <button className={`quiz-option ${!quizSubmitted && option === quizAnswer ? "selected" : ""} ${quizSubmitted && option === currentQuizQuestion.answer ? "correct" : ""} ${quizSubmitted && option === quizAnswer && option !== currentQuizQuestion.answer ? "incorrect" : ""}`} key={option} onClick={() => { if (!quizSubmitted) setQuizAnswer(option); }} disabled={quizSubmitted}>{option}</button>)}</div>{quizSubmitted && <div className={`quiz-feedback ${isCorrect ? "correct" : "incorrect"}`}><strong>{isCorrect ? "Correct" : `Correct answer: ${currentQuizQuestion.answer}`}</strong><span>{currentQuizQuestion.explanation || (quizAnswer.trim() ? "Keep practicing this word." : "The answer is shown above. Try to remember it for next time.")}</span></div>}<div className="quiz-actions">{!quizSubmitted ? <button className="primary-button" onClick={submitQuizAnswer}>Check answer</button> : <button className="primary-button" onClick={nextQuizQuestion}>{quizIndex + 1 === quizQuestions.length ? "Finish" : "Next question"}<ArrowRight size={15} /></button>}</div></div>}
         </section>;
+    }
+
+    function renderTranslationItems(items: TranslationItem[], emptyLabel: string) {
+        if (!items.length) return <p className="translation-empty">{emptyLabel}</p>;
+        return <div className="translation-items">{items.map((item) => <div className="translation-item" key={`${item.word}-${item.translation}`}><div><strong>{item.word}</strong>{item.category && <span>{item.category}</span>}</div><span>{item.translation}</span></div>)}</div>;
+    }
+
+    function renderTranslate() {
+        const result = translationResult;
+        return <div className="translate-page">
+            <section className="translate-search surface-panel">
+                <div className="translate-search-copy"><div className="eyebrow">AI word studio</div><h2>Unpack one word at a time.</h2><p>See meaning, related forms, examples, and etymology in your target language.</p></div>
+                <form className="form-grid" onSubmit={generateTranslation}>
+                    <div className="language-row"><div className="field"><label htmlFor="translate-source-language">Source language</label><select id="translate-source-language" value={translateSourceLanguage} onChange={(event) => setTranslateSourceLanguage(event.target.value)}>{languageOptions.map((language) => <option value={language} key={language}>{language}</option>)}</select></div><div className="field"><label htmlFor="translate-target-language">Target language</label><select id="translate-target-language" value={translateTargetLanguage} onChange={(event) => setTranslateTargetLanguage(event.target.value)}>{languageOptions.map((language) => <option value={language} key={language}>{language}</option>)}</select></div></div>
+                    <div className="field"><label htmlFor="translate-word">Word or phrase</label><div className="input-with-action"><input id="translate-word" value={translateWord} onChange={(event) => setTranslateWord(event.target.value)} placeholder="e.g. bevorzugen" /><button type="submit" className="input-action" disabled={translationLoading || !translateWord.trim()}><Sparkles size={13} />{translationLoading ? "Analyzing..." : "Analyze"}</button></div></div>
+                    {translationStatus && <div className="form-note">{translationStatus}</div>}
+                </form>
+            </section>
+            {!result && !translationLoading && !translationStatus && <section className="translate-empty surface-panel"><Sparkles size={28} /><h2>Start with a word.</h2><p>The result stays on this screen and is never saved to your vocabulary.</p></section>}
+            {translationLoading && <section className="translate-empty surface-panel"><Sparkles size={28} /><h2>Reading the word...</h2><p>Gemini 2.5 Flash is preparing a focused language breakdown.</p></section>}
+            {result && <div className="translation-results"><section className="translation-hero surface-panel"><div><div className="eyebrow">{result.sourceLanguage} → {result.targetLanguage}</div><h2>{result.word}</h2><p className="translation-meaning">{result.meaning}</p><p>{result.definition}</p></div><div className="translation-meta"><span>{result.partOfSpeech || "Word"}</span><button type="button" className="speaker-button" onClick={() => speakWord(result.word, result.sourceLanguage)} aria-label={`Pronounce ${result.word}`}><Volume2 size={17} /></button></div></section><div className="translation-grid"><section className="surface-panel translation-section"><div className="panel-heading"><div><h2>Examples</h2><p className="panel-subtitle">Same idea in both languages</p></div><Languages size={17} color="var(--sage)" /></div><div className="translation-example"><span>{result.sourceLanguage}</span><p>{result.sourceExample}</p></div><div className="translation-example"><span>{result.targetLanguage}</span><p>{result.targetExample}</p></div></section><section className="surface-panel translation-section"><div className="panel-heading"><div><h2>Word family</h2><p className="panel-subtitle">Related forms in the source language</p></div><BookOpenCheck size={17} color="var(--sage)" /></div>{renderTranslationItems(result.wordFamily, "No related forms were returned.")}</section><section className="surface-panel translation-section"><div className="panel-heading"><div><h2>Synonyms</h2><p className="panel-subtitle">Close alternatives</p></div></div>{renderTranslationItems(result.synonyms, "No synonyms were returned.")}</section><section className="surface-panel translation-section"><div className="panel-heading"><div><h2>Antonyms</h2><p className="panel-subtitle">Contrasting meanings</p></div></div>{renderTranslationItems(result.antonyms, "No antonyms were returned.")}</section></div><section className="surface-panel etymology-section"><div className="panel-heading"><div><h2>Etymology</h2><p className="panel-subtitle">AI-generated root information</p></div><span className="state-tag state-review">{result.etymology.confidence || "unknown"}</span></div>{result.etymology.explanation ? <div className="etymology-copy"><div className="etymology-root"><span>Root</span><strong>{result.etymology.root || "Not available"}</strong><small>{result.etymology.rootLanguage || "Unknown language"}{result.etymology.rootMeaning ? ` · ${result.etymology.rootMeaning}` : ""}</small></div><p>{result.etymology.explanation}</p></div> : <p className="translation-empty-inline">No reliable etymological information was returned for this word.</p>}</section></div>}
+        </div>;
     }
 
     function renderReview() {
@@ -859,5 +947,5 @@ export default function FlashcardApp() {
         return <section className="surface-panel"><div className="panel-heading"><h2>Learning setup</h2><ShieldCheck size={17} color="var(--sage)" /></div><div className="settings-list"><div className="setting-row"><div className="setting-copy"><strong>Workspace</strong><span>Switch your learning shelf.</span></div><div className="setting-control"><select value={workspace} onChange={(event) => void switchWorkspace(event.target.value)}>{(cloudMode ? workspaces.map((item) => item.name) : ["Arda's notebook", "Travel words", "Reading shelf"]).map((item) => <option key={item}>{item}</option>)}</select><button className="icon-button" onClick={() => void addWorkspace()} aria-label="Create workspace"><CirclePlus size={15} /></button></div></div><div className="setting-row"><div className="setting-copy"><strong>New cards per day</strong><span>Keep the first step light.</span></div><select defaultValue="20"><option>10</option><option>20</option><option>30</option></select></div><div className="setting-row"><div className="setting-copy"><strong>Dark mode</strong><span>Use a lower-light palette.</span></div><button className={`toggle ${darkMode ? "on" : ""}`} onClick={() => setDarkMode((value) => !value)} aria-label="Toggle dark mode"><i /></button></div><div className="setting-row"><div className="setting-copy"><strong>Sync status</strong><span>{syncStatus || (cloudMode ? "Connected to Supabase" : "Local demo mode")}</span></div><span className="state-tag state-review">{cloudMode ? "Cloud" : "Local"}</span></div><div className="setting-row"><div className="setting-copy"><strong>Keyboard shortcuts</strong><span>Reveal with Space, rate with 1-4.</span></div><Keyboard size={18} color="var(--muted)" /></div><div className="setting-row"><div className="setting-copy"><strong>Account</strong><span>Sign out from this workspace.</span></div><button className="ghost-button" onClick={() => void signOut()}><LogOut size={14} /> Sign out</button></div></div></section>;
     }
 
-    return <div className="app-shell"><aside className="sidebar"><div className="brand"><div className="brand-mark"><BookOpenCheck size={17} /></div><span className="brand-name">Lexicon Loop</span></div><div className="workspace-label">Workspace</div><div className="workspace-picker"><span className="workspace-dot" /><span style={{ flex: 1 }}>Arda&apos;s notebook</span><ChevronDown size={14} color="var(--muted)" /></div><nav className="nav-group" aria-label="Main navigation">{navItems.map(({ id, label, icon: Icon }) => <button className={`nav-button ${activeView === id ? "active" : ""}`} key={id} onClick={() => { setActiveView(id); setIsFlipped(false); }}><Icon size={16} />{label}{id === "review" && dueCount > 0 && <span className="nav-count">{dueCount}</span>}</button>)}<button className={`nav-button ${activeView === "settings" ? "active" : ""}`} onClick={() => setActiveView("settings")}><Settings2 size={16} />Settings</button></nav><div className="sidebar-spacer" /><div className="sidebar-profile"><div className="avatar">AK</div><div className="profile-copy"><strong>Arda Kaya</strong><span>Free workspace</span></div><Menu size={16} color="var(--muted)" /></div></aside><div className="main-area"><div className="topbar-mobile"><div className="mobile-brand"><div className="brand-mark"><BookOpenCheck size={15} /></div>Lexicon Loop</div><button className="icon-button" onClick={openAddModal} aria-label="Add word"><CirclePlus size={18} /></button></div><main className="page-wrap">{activeView !== "add" && activeView !== "add-folder" && <header className="page-header"><div><div className="eyebrow">{activeView === "review" ? "Tuesday · 08 September 2026" : "Your library"}</div><h1>{titleForView[activeView]}</h1><p>{subtitleForView[activeView]}</p></div><div className="header-actions"><button className="icon-button" aria-label="Search" onClick={() => setActiveView("words")}><Search size={17} /></button><button className="primary-button" onClick={openAddModal}><CirclePlus size={16} /> Add word</button></div></header>}{activeView === "review" && renderReview()}{activeView === "words" && renderWords()}{activeView === "folders" && renderFolders()}{activeView === "statistics" && renderStatistics()}{activeView === "settings" && renderSettings()}{activeView === "add" && renderAddWord()}{activeView === "add-folder" && renderAddFolder()}</main></div><nav className="mobile-nav" aria-label="Mobile navigation">{navItems.map(({ id, label, icon: Icon }) => <button key={id} className={activeView === id ? "active" : ""} onClick={() => setActiveView(id)}><Icon size={18} /><span>{label}</span></button>)}<button className="add-mobile" onClick={openAddModal}><span><CirclePlus size={17} /></span><small>Add</small></button></nav></div>;
+    return <div className="app-shell"><aside className="sidebar"><div className="brand"><div className="brand-mark"><BookOpenCheck size={17} /></div><span className="brand-name">Lexicon Loop</span></div><div className="workspace-label">Workspace</div><div className="workspace-picker"><span className="workspace-dot" /><span style={{ flex: 1 }}>Arda&apos;s notebook</span><ChevronDown size={14} color="var(--muted)" /></div><nav className="nav-group" aria-label="Main navigation">{navItems.map(({ id, label, icon: Icon }) => <button className={`nav-button ${activeView === id ? "active" : ""}`} key={id} onClick={() => { setActiveView(id); setIsFlipped(false); }}><Icon size={16} />{label}{id === "review" && dueCount > 0 && <span className="nav-count">{dueCount}</span>}</button>)}<button className={`nav-button ${activeView === "settings" ? "active" : ""}`} onClick={() => setActiveView("settings")}><Settings2 size={16} />Settings</button></nav><div className="sidebar-spacer" /><div className="sidebar-profile"><div className="avatar">AK</div><div className="profile-copy"><strong>Arda Kaya</strong><span>Free workspace</span></div><Menu size={16} color="var(--muted)" /></div></aside><div className="main-area"><div className="topbar-mobile"><div className="mobile-brand"><div className="brand-mark"><BookOpenCheck size={15} /></div>Lexicon Loop</div><button className="icon-button" onClick={openAddModal} aria-label="Add word"><CirclePlus size={18} /></button></div><main className="page-wrap">{activeView !== "add" && activeView !== "add-folder" && <header className="page-header"><div><div className="eyebrow">{activeView === "review" ? "Tuesday · 08 September 2026" : "Your library"}</div><h1>{titleForView[activeView]}</h1><p>{subtitleForView[activeView]}</p></div><div className="header-actions"><button className="icon-button" aria-label="Search" onClick={() => setActiveView("words")}><Search size={17} /></button><button className="primary-button" onClick={openAddModal}><CirclePlus size={16} /> Add word</button></div></header>}{activeView === "review" && renderReview()}{activeView === "words" && renderWords()}{activeView === "translate" && renderTranslate()}{activeView === "folders" && renderFolders()}{activeView === "statistics" && renderStatistics()}{activeView === "settings" && renderSettings()}{activeView === "add" && renderAddWord()}{activeView === "add-folder" && renderAddFolder()}</main></div><nav className="mobile-nav" aria-label="Mobile navigation">{navItems.map(({ id, label, icon: Icon }) => <button key={id} className={activeView === id ? "active" : ""} onClick={() => setActiveView(id)}><Icon size={18} /><span>{label}</span></button>)}<button className="add-mobile" onClick={openAddModal}><span><CirclePlus size={17} /></span><small>Add</small></button></nav></div>;
 }
