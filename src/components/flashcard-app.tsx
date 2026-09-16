@@ -27,20 +27,17 @@ import {
     Volume2,
     X,
 } from "lucide-react";
-import { calculateNextReview, formatDueIn, sortReviewQueue } from "@/lib/spaced-repetition";
+import { calculateNextReview, formatDueIn, isDue, sortReviewQueue } from "@/lib/spaced-repetition";
 import { applyDeviceTheme, watchDeviceTheme } from "@/lib/device-theme";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { deleteFolder, deleteWord, deleteWorkspace, insertFolder, insertWord, insertWorkspace, loadUserData, loadWorkspaces, saveReview, updateFolder, updateWord } from "@/lib/supabase/data";
 import type { CardState, CefrLevel, Folder, ReviewLog, ReviewRating, WordRecord, Workspace } from "@/lib/types";
 
 type View = "review" | "words" | "translate" | "folders" | "statistics" | "settings" | "add" | "add-folder" | "word-detail";
-type Filter = "all" | CardState;
-type ReviewFilterOption = {
-    value: string;
-    label: string;
-    sourceLanguage?: string;
-    folderId?: string;
-};
+type WordReviewStatus = "all" | "overdue" | "today" | "upcoming" | "unreviewed";
+type ReviewDueMode = "due" | "all";
+type ReviewSort = "oldest-due" | "most-errors" | "random";
+type SearchField = "word" | "meaning" | "exampleSentence" | "notes";
 type WordForm = {
     word: string;
     meaning: string;
@@ -199,8 +196,21 @@ export default function FlashcardApp() {
     const [selectedWordId, setSelectedWordId] = useState<string | null>(null);
     const [detailReturnView, setDetailReturnView] = useState<View>("words");
     const [search, setSearch] = useState("");
-    const [filter, setFilter] = useState<Filter>("all");
-    const [reviewFilter, setReviewFilter] = useState("all");
+    const [wordFiltersOpen, setWordFiltersOpen] = useState(false);
+    const [wordStates, setWordStates] = useState<CardState[]>([]);
+    const [wordSourceLanguage, setWordSourceLanguage] = useState("all");
+    const [wordTargetLanguage, setWordTargetLanguage] = useState("all");
+    const [wordFolderId, setWordFolderId] = useState("all");
+    const [wordCefrLevel, setWordCefrLevel] = useState<CefrLevel | "all">("all");
+    const [wordReviewStatus, setWordReviewStatus] = useState<WordReviewStatus>("all");
+    const [searchFields, setSearchFields] = useState<SearchField[]>(["word", "meaning", "exampleSentence", "notes"]);
+    const [reviewFiltersOpen, setReviewFiltersOpen] = useState(false);
+    const [reviewSourceLanguage, setReviewSourceLanguage] = useState("all");
+    const [reviewTargetLanguage, setReviewTargetLanguage] = useState("all");
+    const [reviewFolderId, setReviewFolderId] = useState("all");
+    const [reviewCefrLevel, setReviewCefrLevel] = useState<CefrLevel | "all">("all");
+    const [reviewDueMode, setReviewDueMode] = useState<ReviewDueMode>("due");
+    const [reviewSort, setReviewSort] = useState<ReviewSort>("oldest-due");
     const [generating, setGenerating] = useState(false);
     const [generationStatus, setGenerationStatus] = useState("");
     const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>([]);
@@ -358,31 +368,53 @@ export default function FlashcardApp() {
         return () => { cancelled = true; };
     }, []);
 
-    const reviewFilterOptions = useMemo<ReviewFilterOption[]>(() => {
-        const languages = Array.from(new Set(cards.map((card) => card.sourceLanguage).filter(Boolean))).sort();
-        return [
-            { value: "all", label: "All" },
-            ...languages.map((language) => ({ value: `language:${language}`, label: language, sourceLanguage: language })),
-            ...folders.map((folder) => ({ value: `folder:${folder.id}`, label: folder.name, folderId: folder.id })),
-        ];
-    }, [cards, folders]);
-    const selectedReviewFilter = reviewFilterOptions.find((option) => option.value === reviewFilter);
-    const reviewCards = useMemo(() => {
-        if (!selectedReviewFilter?.sourceLanguage && !selectedReviewFilter?.folderId) return cards;
-        if (selectedReviewFilter.sourceLanguage) return cards.filter((card) => card.sourceLanguage === selectedReviewFilter.sourceLanguage);
-        return cards.filter((card) => sameId(card.folderId, selectedReviewFilter.folderId));
-    }, [cards, selectedReviewFilter]);
-    const queue = useMemo(() => sortReviewQueue(reviewCards, new Date(now)), [reviewCards, now]);
+    const availableSourceLanguages = useMemo(() => Array.from(new Set(cards.map((card) => card.sourceLanguage).filter(Boolean))).sort(), [cards]);
+    const availableTargetLanguages = useMemo(() => Array.from(new Set(cards.map((card) => card.targetLanguage).filter(Boolean))).sort(), [cards]);
+    const reviewCards = useMemo(() => cards.filter((card) => {
+        if (reviewSourceLanguage !== "all" && card.sourceLanguage !== reviewSourceLanguage) return false;
+        if (reviewTargetLanguage !== "all" && card.targetLanguage !== reviewTargetLanguage) return false;
+        if (reviewFolderId !== "all" && (reviewFolderId === "unsorted" ? card.folderId : !sameId(card.folderId, reviewFolderId))) return false;
+        if (reviewCefrLevel !== "all" && card.cefrLevel !== reviewCefrLevel) return false;
+        return true;
+    }), [cards, reviewCefrLevel, reviewFolderId, reviewSourceLanguage, reviewTargetLanguage]);
+    const queue = useMemo(() => {
+        const candidates = reviewDueMode === "due" ? reviewCards.filter((card) => isDue(card, new Date(now))) : reviewCards;
+        if (reviewSort === "random") return [...candidates].sort(() => Math.random() - 0.5);
+        if (reviewSort === "most-errors") return [...candidates].sort((first, second) => second.lapses - first.lapses || new Date(first.dueAt).getTime() - new Date(second.dueAt).getTime());
+        return reviewDueMode === "due" ? sortReviewQueue(candidates, new Date(now)) : [...candidates].sort((first, second) => {
+            if (first.state === "new" && second.state !== "new") return -1;
+            if (first.state !== "new" && second.state === "new") return 1;
+            return new Date(first.dueAt).getTime() - new Date(second.dueAt).getTime();
+        });
+    }, [now, reviewCards, reviewDueMode, reviewSort]);
     const currentCard = queue[0];
     const quizCards = useMemo(() => [...cards].sort((first, second) => new Date(second.createdAt).getTime() - new Date(first.createdAt).getTime()), [cards]);
     const currentQuizQuestion = quizQuestions[quizIndex];
     const dueCount = queue.length;
     const learnedCount = cards.filter((card) => card.state === "mastered").length;
     const todayLogs = logs.filter((log) => new Date(log.reviewedAt).toDateString() === new Date().toDateString());
-    const visibleCards = cards.filter((card) => {
-        const matchesSearch = `${card.word} ${card.meaning}`.toLowerCase().includes(search.toLowerCase());
-        return matchesSearch && (filter === "all" || card.state === filter);
-    });
+    const visibleCards = useMemo(() => {
+        const dayStart = new Date(now);
+        dayStart.setHours(0, 0, 0, 0);
+        const dayEnd = new Date(dayStart);
+        dayEnd.setDate(dayEnd.getDate() + 1);
+        return cards.filter((card) => {
+            const searchableText = searchFields.map((field) => card[field] ?? "").join(" ").toLowerCase();
+            const matchesSearch = !search.trim() || searchableText.includes(search.toLowerCase());
+            const matchesState = !wordStates.length || wordStates.includes(card.state);
+            const matchesSource = wordSourceLanguage === "all" || card.sourceLanguage === wordSourceLanguage;
+            const matchesTarget = wordTargetLanguage === "all" || card.targetLanguage === wordTargetLanguage;
+            const matchesFolder = wordFolderId === "all" || (wordFolderId === "unsorted" ? !card.folderId : sameId(card.folderId, wordFolderId));
+            const matchesCefr = wordCefrLevel === "all" || card.cefrLevel === wordCefrLevel;
+            const dueTime = new Date(card.dueAt).getTime();
+            const matchesReviewStatus = wordReviewStatus === "all"
+                || (wordReviewStatus === "unreviewed" && card.reps === 0)
+                || (wordReviewStatus === "overdue" && dueTime < dayStart.getTime() && card.reps > 0)
+                || (wordReviewStatus === "today" && dueTime >= dayStart.getTime() && dueTime < dayEnd.getTime())
+                || (wordReviewStatus === "upcoming" && dueTime >= dayEnd.getTime());
+            return matchesSearch && matchesState && matchesSource && matchesTarget && matchesFolder && matchesCefr && matchesReviewStatus;
+        });
+    }, [cards, now, search, searchFields, wordCefrLevel, wordFolderId, wordReviewStatus, wordSourceLanguage, wordStates, wordTargetLanguage]);
     const getFolderCards = (folderId: string) => cards.filter((card) => sameId(card.folderId, folderId));
 
     const getCloudContext = useCallback(() => {
@@ -959,22 +991,49 @@ export default function FlashcardApp() {
         </div>;
     }
 
+    const toggleWordState = (state: CardState) => setWordStates((current) => current.includes(state) ? current.filter((item) => item !== state) : [...current, state]);
+    const toggleSearchField = (field: SearchField) => setSearchFields((current) => current.includes(field) ? current.filter((item) => item !== field) : [...current, field]);
+    const clearWordFilters = () => {
+        setWordStates([]);
+        setWordSourceLanguage("all");
+        setWordTargetLanguage("all");
+        setWordFolderId("all");
+        setWordCefrLevel("all");
+        setWordReviewStatus("all");
+        setSearchFields(["word", "meaning", "exampleSentence", "notes"]);
+    };
+    const clearReviewFilters = () => {
+        setReviewSourceLanguage("all");
+        setReviewTargetLanguage("all");
+        setReviewFolderId("all");
+        setReviewCefrLevel("all");
+        setReviewDueMode("due");
+        setReviewSort("oldest-due");
+        setIsFlipped(false);
+    };
+
     function renderReview() {
         if (showQuiz) return renderQuiz();
         return (
             <div className="dashboard-grid">
                 <section className="review-stage" aria-label="Review session">
                     <div className="stage-head">
-                        <div className="stage-progress"><span>{dueCount} cards remaining</span><div className="progress-track"><div className="progress-fill" style={{ width: `${Math.max(7, Math.min(100, ((reviewCards.length - dueCount) / Math.max(reviewCards.length, 1)) * 100))}%` }} /></div></div><button className="ghost-button quiz-launch-button" onClick={() => setShowQuiz(true)} disabled={!quizCards.length}><ListChecks size={14} /> Quiz</button>
+                        <div className="stage-progress"><span>{dueCount} remaining · {reviewCards.length} matching</span><div className="progress-track"><div className="progress-fill" style={{ width: `${Math.max(7, Math.min(100, ((reviewCards.length - dueCount) / Math.max(reviewCards.length, 1)) * 100))}%` }} /></div></div><button className="ghost-button quiz-launch-button" onClick={() => setShowQuiz(true)} disabled={!quizCards.length}><ListChecks size={14} /> Quiz</button>
                         <div className="review-controls">
-                            <label htmlFor="review-filter">Review set</label>
-                            <select id="review-filter" value={selectedReviewFilter?.value ?? "all"} onChange={(event) => { setReviewFilter(event.target.value); setIsFlipped(false); }}>
-                                <option value="all">All</option>
-                                {reviewFilterOptions.some((option) => option.sourceLanguage) && <optgroup label="Source language">{reviewFilterOptions.filter((option) => option.sourceLanguage).map((option) => <option value={option.value} key={option.value}>{option.label}</option>)}</optgroup>}
-                                {reviewFilterOptions.some((option) => option.folderId) && <optgroup label="Folder">{reviewFilterOptions.filter((option) => option.folderId).map((option) => <option value={option.value} key={option.value}>{option.label}</option>)}</optgroup>}
-                            </select>
+                            <button className={`ghost-button filter-toggle ${reviewFiltersOpen ? "active" : ""}`} onClick={() => setReviewFiltersOpen((value) => !value)}><Settings2 size={14} /> Filters</button>
                         </div>
                     </div>
+                    {reviewFiltersOpen && <div className="filter-panel review-filter-panel">
+                        <div className="filter-panel-head"><strong>Review set</strong><button type="button" className="text-button" onClick={clearReviewFilters}>Clear</button></div>
+                        <div className="filter-grid">
+                            <label>Source language<select value={reviewSourceLanguage} onChange={(event) => { setReviewSourceLanguage(event.target.value); setIsFlipped(false); }}><option value="all">All</option>{availableSourceLanguages.map((language) => <option value={language} key={language}>{language}</option>)}</select></label>
+                            <label>Target language<select value={reviewTargetLanguage} onChange={(event) => { setReviewTargetLanguage(event.target.value); setIsFlipped(false); }}><option value="all">All</option>{availableTargetLanguages.map((language) => <option value={language} key={language}>{language}</option>)}</select></label>
+                            <label>Folder<select value={reviewFolderId} onChange={(event) => { setReviewFolderId(event.target.value); setIsFlipped(false); }}><option value="all">All</option><option value="unsorted">Unsorted</option>{folders.map((folder) => <option value={folder.id} key={folder.id}>{folder.name}</option>)}</select></label>
+                            <label>CEFR<select value={reviewCefrLevel} onChange={(event) => { setReviewCefrLevel(event.target.value as CefrLevel | "all"); setIsFlipped(false); }}><option value="all">All</option>{cefrLevels.map((level) => <option value={level} key={level}>{level}</option>)}</select></label>
+                            <label>Cards<select value={reviewDueMode} onChange={(event) => { setReviewDueMode(event.target.value as ReviewDueMode); setIsFlipped(false); }}><option value="due">Due only</option><option value="all">All cards</option></select></label>
+                            <label>Sort<select value={reviewSort} onChange={(event) => setReviewSort(event.target.value as ReviewSort)}><option value="oldest-due">Oldest due</option><option value="most-errors">Most errors</option><option value="random">Random</option></select></label>
+                        </div>
+                    </div>}
                     {currentCard ? <>
                         <div className="flashcard-wrap" onTouchStart={(event) => { const touch = event.changedTouches[0]; touchStart.current = touch ? { x: touch.clientX, y: touch.clientY } : null; }} onTouchEnd={(event) => { const touch = event.changedTouches[0]; const start = touchStart.current; touchStart.current = null; if (!start || !touch || !isFlipped) return; const deltaX = touch.clientX - start.x; const deltaY = touch.clientY - start.y; if (Math.abs(deltaX) > 65 && Math.abs(deltaX) > Math.abs(deltaY) * 1.25) handleReview(deltaX > 0 ? "good" : "forgot"); }} onTouchCancel={() => { touchStart.current = null; }}>
                             <div className="flashcard-shell"><div className={`flashcard ${isFlipped ? "flipped" : ""}`} onClick={() => setIsFlipped((value) => !value)} role="button" tabIndex={0} aria-label={isFlipped ? "Hide answer" : "Reveal answer"} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") setIsFlipped((value) => !value); }}>
@@ -1006,7 +1065,9 @@ export default function FlashcardApp() {
 
     function renderWords() {
         if (selectedWordId) return renderWordDetail();
-        return <><div className="view-toolbar"><div className="search-box"><Search size={15} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search vocabulary..." /></div><div className="filter-row">{(["all", "new", "learning", "review", "mastered"] as Filter[]).map((item) => <button className={`filter-chip ${filter === item ? "active" : ""}`} key={item} onClick={() => setFilter(item)}>{item === "all" ? "All" : item[0].toUpperCase() + item.slice(1)}</button>)}</div></div><div className="word-list">{visibleCards.length ? visibleCards.map((card) => <div className="word-row" key={card.id}><div className="word-main"><button type="button" className="word-title word-title-button" onClick={() => openWordDetail(card)}><strong>{card.word}</strong></button><span>{card.meaning || "Meaning to be added"}</span></div><div className="word-folder">{folders.find((folder) => folder.id === card.folderId)?.name ?? "Unsorted"}</div><div><span className={`state-tag state-${card.state}`}>{card.state}</span></div><div className="word-due">{formatDueIn(card.dueAt, new Date(now))}</div><div className="row-actions"><button type="button" className="speaker-button word-speaker" onClick={(event) => { event.stopPropagation(); speakWord(card.word, card.sourceLanguage); }} aria-label={`Pronounce ${card.word}`}><Volume2 size={15} /></button><button className="icon-button" onClick={() => openEditWord(card)} aria-label={`Edit ${card.word}`}><Pencil size={14} /></button><button className="icon-button danger-button" onClick={() => void removeWord(card)} aria-label={`Delete ${card.word}`}><Trash2 size={14} /></button></div></div>) : <div className="no-results">No words match that search.</div>}</div></>;
+        const wordFilterCount = wordStates.length + [wordSourceLanguage, wordTargetLanguage, wordFolderId, wordCefrLevel, wordReviewStatus].filter((value) => value !== "all").length + (searchFields.length < 4 ? 1 : 0);
+        const searchFieldOptions: Array<[SearchField, string]> = [["word", "Word"], ["meaning", "Meaning"], ["exampleSentence", "Example"], ["notes", "Notes"]];
+        return <><div className="view-toolbar"><div className="search-box"><Search size={15} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search vocabulary..." /></div><button className={`ghost-button filter-toggle ${wordFiltersOpen ? "active" : ""}`} onClick={() => setWordFiltersOpen((value) => !value)}><Settings2 size={14} /> Filters{wordFilterCount ? ` (${wordFilterCount})` : ""}</button></div>{wordFiltersOpen && <div className="filter-panel word-filter-panel"><div className="filter-panel-head"><strong>Vocabulary filters</strong><button type="button" className="text-button" onClick={clearWordFilters}>Clear</button></div><div className="filter-grid"><label>Source language<select value={wordSourceLanguage} onChange={(event) => setWordSourceLanguage(event.target.value)}><option value="all">All</option>{availableSourceLanguages.map((language) => <option value={language} key={language}>{language}</option>)}</select></label><label>Target language<select value={wordTargetLanguage} onChange={(event) => setWordTargetLanguage(event.target.value)}><option value="all">All</option>{availableTargetLanguages.map((language) => <option value={language} key={language}>{language}</option>)}</select></label><label>Folder<select value={wordFolderId} onChange={(event) => setWordFolderId(event.target.value)}><option value="all">All</option><option value="unsorted">Unsorted</option>{folders.map((folder) => <option value={folder.id} key={folder.id}>{folder.name}</option>)}</select></label><label>CEFR<select value={wordCefrLevel} onChange={(event) => setWordCefrLevel(event.target.value as CefrLevel | "all")}><option value="all">All</option>{cefrLevels.map((level) => <option value={level} key={level}>{level}</option>)}</select></label><label>Review status<select value={wordReviewStatus} onChange={(event) => setWordReviewStatus(event.target.value as WordReviewStatus)}><option value="all">All</option><option value="overdue">Overdue</option><option value="today">Due today</option><option value="upcoming">Upcoming</option><option value="unreviewed">Never reviewed</option></select></label></div><div className="filter-section"><span className="filter-label">Card status</span><div className="filter-row">{(["new", "learning", "review", "mastered"] as CardState[]).map((state) => <button type="button" className={`filter-chip ${wordStates.includes(state) ? "active" : ""}`} key={state} onClick={() => toggleWordState(state)}>{state[0].toUpperCase() + state.slice(1)}</button>)}</div></div><div className="filter-section"><span className="filter-label">Search in</span><div className="filter-row">{searchFieldOptions.map(([field, label]) => <button type="button" className={`filter-chip ${searchFields.includes(field) ? "active" : ""}`} key={field} onClick={() => toggleSearchField(field)}>{label}</button>)}</div></div></div>}<div className="filter-result-count">Showing {visibleCards.length} of {cards.length} words</div><div className="word-list">{visibleCards.length ? visibleCards.map((card) => <div className="word-row" key={card.id}><div className="word-main"><button type="button" className="word-title word-title-button" onClick={() => openWordDetail(card)}><strong>{card.word}</strong></button><span>{card.meaning || "Meaning to be added"}</span></div><div className="word-folder">{folders.find((folder) => folder.id === card.folderId)?.name ?? "Unsorted"}</div><div><span className={`state-tag state-${card.state}`}>{card.state}</span></div><div className="word-due">{formatDueIn(card.dueAt, new Date(now))}</div><div className="row-actions"><button type="button" className="speaker-button word-speaker" onClick={(event) => { event.stopPropagation(); speakWord(card.word, card.sourceLanguage); }} aria-label={`Pronounce ${card.word}`}><Volume2 size={15} /></button><button className="icon-button" onClick={() => openEditWord(card)} aria-label={`Edit ${card.word}`}><Pencil size={14} /></button><button className="icon-button danger-button" onClick={() => void removeWord(card)} aria-label={`Delete ${card.word}`}><Trash2 size={14} /></button></div></div>) : <div className="no-results">No words match these filters.</div>}</div></>;
     }
 
     function renderFolders() {

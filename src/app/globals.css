@@ -550,6 +550,130 @@ select.workspace-picker {
     font-size: 11px;
 }
 
+.filter-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+}
+
+.review-controls .filter-toggle {
+    border-color: rgba(255, 255, 255, .2);
+    color: #fff;
+}
+
+.review-controls .filter-toggle:hover,
+.review-controls .filter-toggle.active {
+    border-color: var(--yellow);
+    color: var(--yellow);
+}
+
+.filter-panel {
+    display: grid;
+    gap: 15px;
+    padding: 16px;
+    margin-bottom: 18px;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    background: var(--surface);
+    color: var(--ink);
+}
+
+.review-filter-panel {
+    position: relative;
+    z-index: 2;
+    border-color: rgba(255, 255, 255, .14);
+    background: rgba(255, 255, 255, .08);
+    color: #fff;
+}
+
+.filter-panel-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+}
+
+.text-button {
+    border: 0;
+    padding: 0;
+    background: transparent;
+    color: var(--sage);
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.review-filter-panel .text-button {
+    color: var(--yellow);
+}
+
+.filter-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.filter-grid label {
+    display: grid;
+    gap: 6px;
+    color: var(--muted);
+    font-size: 10px;
+    font-weight: 700;
+}
+
+.review-filter-panel .filter-grid label {
+    color: #b7cbc1;
+}
+
+.filter-grid select {
+    width: 100%;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 8px 24px 8px 9px;
+    background: var(--surface);
+    color: var(--ink);
+    font-size: 11px;
+}
+
+.review-filter-panel .filter-grid select {
+    border-color: rgba(255, 255, 255, .2);
+    background: rgba(255, 255, 255, .08);
+    color: #fff;
+}
+
+.review-filter-panel .filter-grid option {
+    background: var(--surface);
+    color: var(--ink);
+}
+
+.filter-section {
+    display: grid;
+    gap: 8px;
+}
+
+.filter-label {
+    color: var(--muted);
+    font-size: 10px;
+    font-weight: 700;
+}
+
+.filter-result-count {
+    margin: -7px 0 10px;
+    color: var(--muted);
+    font-size: 11px;
+}
+
+@media (max-width: 720px) {
+    .filter-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .review-controls .filter-toggle {
+        width: 100%;
+        justify-content: center;
+    }
+}
+
 .review-controls option {
     color: var(--ink);
     background: var(--surface);
