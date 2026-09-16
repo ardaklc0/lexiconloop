@@ -2437,13 +2437,19 @@ select.workspace-picker {
 
     .review-stage {
         margin-inline: -2px;
-        padding: 16px;
-        min-height: 520px;
+        padding: 24px 16px 16px;
+        min-height: 0;
+    }
+
+    .review-filter-panel {
+        gap: 10px;
+        padding: 12px;
+        margin-bottom: 8px;
     }
 
     .flashcard-wrap {
-        min-height: 345px;
-        padding-inline: 0;
+        min-height: 310px;
+        padding: 16px 0 8px;
     }
 
     .card-face {
