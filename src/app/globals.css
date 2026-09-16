@@ -2449,7 +2449,7 @@ select.workspace-picker {
 
     .flashcard-wrap {
         min-height: 0;
-        padding: 10px 0 0;
+        padding: 10px 0 8px;
     }
 
     .card-face {
