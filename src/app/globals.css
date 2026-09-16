@@ -2444,12 +2444,12 @@ select.workspace-picker {
     .review-filter-panel {
         gap: 10px;
         padding: 12px;
-        margin-bottom: 8px;
+        margin-bottom: 0;
     }
 
     .flashcard-wrap {
-        min-height: 310px;
-        padding: 16px 0 8px;
+        min-height: 0;
+        padding: 10px 0 0;
     }
 
     .card-face {
