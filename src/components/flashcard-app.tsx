@@ -403,7 +403,7 @@ export default function FlashcardApp() {
             return true;
         })
         .sort((first, second) => new Date(second.createdAt).getTime() - new Date(first.createdAt).getTime()),
-    [cards, quizCardState, quizCefrLevel, quizFolderId, quizSourceLanguage, quizTargetLanguage]);
+        [cards, quizCardState, quizCefrLevel, quizFolderId, quizSourceLanguage, quizTargetLanguage]);
     const currentQuizQuestion = quizQuestions[quizIndex];
     const dueCount = queue.length;
     const learnedCount = cards.filter((card) => card.state === "mastered").length;
