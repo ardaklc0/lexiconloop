@@ -5,11 +5,13 @@ import {
     ArrowLeft,
     ArrowRight,
     BarChart3,
+    Bell,
     BookOpenCheck,
     Check,
     CirclePlus,
     ChevronDown,
     Clock3,
+    Download,
     Eye,
     Flame,
     FolderOpen,
@@ -24,6 +26,7 @@ import {
     ShieldCheck,
     Sparkles,
     Trash2,
+    Upload,
     Volume2,
     X,
 } from "lucide-react";
@@ -31,6 +34,7 @@ import { calculateNextReview, formatDueIn, isDue, sortReviewQueue } from "@/lib/
 import { applyDeviceTheme, watchDeviceTheme } from "@/lib/device-theme";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { deleteFolder, deleteWord, deleteWorkspace, insertFolder, insertWord, insertWorkspace, loadUserData, loadWorkspaces, saveReview, updateFolder, updateWord } from "@/lib/supabase/data";
+import { parseVocabularyFile, serializeVocabulary, type VocabularyEntry } from "@/lib/vocabulary-transfer";
 import type { CardState, CefrLevel, Folder, ReviewLog, ReviewRating, WordRecord, Workspace } from "@/lib/types";
 
 type View = "review" | "words" | "translate" | "folders" | "statistics" | "settings" | "add" | "add-folder" | "word-detail";
@@ -189,6 +193,10 @@ export default function FlashcardApp() {
     const [folderForm, setFolderForm] = useState({ name: "", description: "", color: "#dcebe1" });
     const [darkMode, setDarkMode] = useState(false);
     const [now, setNow] = useState(() => Date.now());
+    const [dailyGoal, setDailyGoal] = useState(20);
+    const [dailyReminderEnabled, setDailyReminderEnabled] = useState(false);
+    const [dailyReminderTime, setDailyReminderTime] = useState("20:00");
+    const [reminderStatus, setReminderStatus] = useState("");
     const [workspace, setWorkspace] = useState("");
     const [workspaceId, setWorkspaceId] = useState("");
     const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
@@ -235,8 +243,11 @@ export default function FlashcardApp() {
     const [translationStatus, setTranslationStatus] = useState("");
     const [translationSaveState, setTranslationSaveState] = useState<"idle" | "saving" | "saved">("idle");
     const [relatedSaveStates, setRelatedSaveStates] = useState<Record<string, "saving" | "saved">>({});
+    const [transferBusy, setTransferBusy] = useState(false);
+    const [transferStatus, setTransferStatus] = useState("");
     const [form, setForm] = useState<WordForm>({ word: "", meaning: "", exampleSentence: "", folderId: "", sourceLanguage: "German", targetLanguage: "Turkish", cefrLevel: "", notes: "" });
     const touchStart = useRef<{ x: number; y: number } | null>(null);
+    const importFileRef = useRef<HTMLInputElement>(null);
     const supabaseRef = useRef<ReturnType<typeof createSupabaseBrowserClient>>(null);
     const userIdRef = useRef<string | null>(null);
 
@@ -250,6 +261,23 @@ export default function FlashcardApp() {
     useEffect(() => {
         applyDeviceTheme(darkMode ? "dark" : "light");
     }, [darkMode]);
+
+    useEffect(() => {
+        const savedGoal = Number(window.localStorage.getItem("lexicon-loop-daily-goal"));
+        if (savedGoal === 10 || savedGoal === 20 || savedGoal === 30) setDailyGoal(savedGoal);
+    }, []);
+
+    useEffect(() => {
+        const savedReminder = window.localStorage.getItem("lexicon-loop-daily-reminder");
+        if (!savedReminder) return;
+        try {
+            const reminder = JSON.parse(savedReminder) as { enabled?: unknown; time?: unknown };
+            if (typeof reminder.enabled === "boolean") setDailyReminderEnabled(reminder.enabled);
+            if (typeof reminder.time === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(reminder.time)) setDailyReminderTime(reminder.time);
+        } catch {
+            window.localStorage.removeItem("lexicon-loop-daily-reminder");
+        }
+    }, []);
 
     useEffect(() => {
         const updateNow = () => setNow(Date.now());
@@ -408,6 +436,46 @@ export default function FlashcardApp() {
     const dueCount = queue.length;
     const learnedCount = cards.filter((card) => card.state === "mastered").length;
     const todayLogs = logs.filter((log) => new Date(log.reviewedAt).toDateString() === new Date().toDateString());
+    useEffect(() => {
+        if (!dailyReminderEnabled || typeof Notification === "undefined" || Notification.permission !== "granted" || !("serviceWorker" in navigator)) return;
+        let timeout: number | undefined;
+        let cancelled = false;
+
+        const checkReminder = async () => {
+            const current = new Date();
+            const [hour, minute] = dailyReminderTime.split(":").map(Number);
+            const currentMinute = current.getHours() * 60 + current.getMinutes();
+            const reminderMinute = hour * 60 + minute;
+            const dateKey = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, "0")}-${String(current.getDate()).padStart(2, "0")}`;
+            const lastReminderKey = "lexicon-loop-daily-reminder-last-fired";
+
+            if (cards.length && currentMinute >= reminderMinute && todayLogs.length < dailyGoal && window.localStorage.getItem(lastReminderKey) !== dateKey) {
+                try {
+                    const registration = await navigator.serviceWorker.ready;
+                    if (cancelled) return;
+                    const remaining = Math.min(5, dailyGoal - todayLogs.length);
+                    await registration.showNotification("A quick review is waiting", {
+                        body: `${remaining} ${remaining === 1 ? "word" : "words"} are ready for a little practice today.`,
+                        icon: "/icon.svg",
+                        badge: "/icon.svg",
+                        tag: `daily-review-${dateKey}`,
+                        data: { url: "/" },
+                    });
+                    window.localStorage.setItem(lastReminderKey, dateKey);
+                } catch {
+                    if (!cancelled) setReminderStatus("The reminder could not be delivered. Check your browser notification settings.");
+                }
+            }
+
+            if (!cancelled) timeout = window.setTimeout(() => void checkReminder(), 60_000);
+        };
+
+        void checkReminder();
+        return () => {
+            cancelled = true;
+            if (timeout !== undefined) window.clearTimeout(timeout);
+        };
+    }, [cards.length, dailyGoal, dailyReminderEnabled, dailyReminderTime, todayLogs.length]);
     const visibleCards = useMemo(() => {
         const dayStart = new Date(now);
         dayStart.setHours(0, 0, 0, 0);
@@ -581,6 +649,109 @@ export default function FlashcardApp() {
             setSyncStatus(cloud ? "Synced" : "Saved locally");
         } catch (error) {
             setSyncStatus(error instanceof Error ? error.message : "Word could not be saved.");
+        }
+    }
+
+    function exportVocabulary(format: "csv" | "json" | "anki") {
+        const entries: VocabularyEntry[] = cards.map((card) => ({
+            word: card.word,
+            meaning: card.meaning,
+            exampleSentence: card.exampleSentence,
+            sourceLanguage: card.sourceLanguage,
+            targetLanguage: card.targetLanguage,
+            folderName: folders.find((folder) => sameId(folder.id, card.folderId))?.name,
+            cefrLevel: card.cefrLevel,
+            notes: card.notes,
+        }));
+        const extension = format === "anki" ? "txt" : format;
+        const mimeType = format === "json" ? "application/json" : "text/plain;charset=utf-8";
+        const file = new Blob([serializeVocabulary(entries, format)], { type: mimeType });
+        const url = URL.createObjectURL(file);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `lexicon-loop-vocabulary.${extension}`;
+        link.click();
+        URL.revokeObjectURL(url);
+    }
+
+    async function importVocabulary(event: React.ChangeEvent<HTMLInputElement>) {
+        const input = event.currentTarget;
+        const file = input.files?.[0];
+        if (!file) return;
+        setTransferBusy(true);
+        setTransferStatus("");
+        try {
+            const entries = parseVocabularyFile(file.name, await file.text());
+            const cloud = getCloudContext();
+            if (!cloud) throw new Error("Connect to your workspace before importing words.");
+
+            const knownWords = new Set(cards.map((card) => `${card.word.trim().toLocaleLowerCase()}|${card.sourceLanguage.toLocaleLowerCase()}|${card.targetLanguage.toLocaleLowerCase()}`));
+            const added: WordRecord[] = [];
+            let skipped = 0;
+            let failure = "";
+
+            for (const entry of entries) {
+                const word = entry.word.trim();
+                const meaning = entry.meaning.trim();
+                if (!word || !meaning) {
+                    skipped += 1;
+                    continue;
+                }
+                const sourceLanguage = entry.sourceLanguage.trim() || "German";
+                const targetLanguage = entry.targetLanguage.trim() || "Turkish";
+                const key = `${word.toLocaleLowerCase()}|${sourceLanguage.toLocaleLowerCase()}|${targetLanguage.toLocaleLowerCase()}`;
+                if (knownWords.has(key)) {
+                    skipped += 1;
+                    continue;
+                }
+                knownWords.add(key);
+
+                const folder = entry.folderName?.trim();
+                const folderId = folders.find((item) => item.name.trim().toLocaleLowerCase() === folder?.toLocaleLowerCase())?.id ?? "";
+                const cefrLevel = cefrLevels.includes(entry.cefrLevel as CefrLevel) ? entry.cefrLevel as CefrLevel : undefined;
+                try {
+                    const created = await insertWord(cloud.client, cloud.userId, cloud.workspaceId, {
+                        word,
+                        meaning,
+                        exampleSentence: entry.exampleSentence?.trim() || undefined,
+                        folderId,
+                        sourceLanguage,
+                        targetLanguage,
+                        cefrLevel,
+                        notes: entry.notes?.trim() || undefined,
+                    });
+                    const createdAt = created.createdAt;
+                    added.push({
+                        id: created.id,
+                        word,
+                        meaning,
+                        exampleSentence: entry.exampleSentence?.trim() || undefined,
+                        folderId,
+                        sourceLanguage,
+                        targetLanguage,
+                        cefrLevel,
+                        notes: entry.notes?.trim() || undefined,
+                        createdAt,
+                        state: "new",
+                        stability: 0.25,
+                        difficulty: 5,
+                        dueAt: createdAt,
+                        reps: 0,
+                        lapses: 0,
+                    });
+                } catch (error) {
+                    failure = error instanceof Error ? error.message : "A word could not be imported.";
+                    break;
+                }
+            }
+
+            if (added.length) setCards((previous) => [...added, ...previous]);
+            setTransferStatus(`Imported ${added.length}; skipped ${skipped}.${failure ? ` Stopped: ${failure}` : ""}`);
+        } catch (error) {
+            setTransferStatus(error instanceof Error ? error.message : "Could not read this file.");
+        } finally {
+            input.value = "";
+            setTransferBusy(false);
         }
     }
 
@@ -1047,6 +1218,7 @@ export default function FlashcardApp() {
                             <button className={`ghost-button filter-toggle ${reviewFiltersOpen ? "active" : ""}`} onClick={() => setReviewFiltersOpen((value) => !value)}><Settings2 size={14} /> Filters</button>
                         </div>
                     </div>
+                    {renderDailyGoalProgress()}
                     {reviewFiltersOpen && <div className="filter-panel review-filter-panel">
                         <div className="filter-panel-head"><strong>Review set</strong><button type="button" className="text-button" onClick={clearReviewFilters}>Clear</button></div>
                         <div className="filter-grid">
@@ -1170,13 +1342,14 @@ export default function FlashcardApp() {
         const dayBuckets = Array.from({ length: 7 }, (_, index) => {
             const date = new Date(weekStart);
             date.setDate(weekStart.getDate() + index);
-            return { date, count: weeklyLogs.filter((log) => new Date(log.reviewedAt).toDateString() === date.toDateString()).length };
+            const count = weeklyLogs.filter((log) => new Date(log.reviewedAt).toDateString() === date.toDateString()).length;
+            return { date, count: Math.min(count, dailyGoal), goalMet: count >= dailyGoal };
         });
-        const maxReviews = Math.max(...dayBuckets.map((day) => day.count), 1);
+        const maxReviews = dailyGoal;
         const stats = [
             { label: "Total words", value: cards.length, detail: "Words in your library" },
             { label: "Learned", value: `${Math.round((learnedCount / Math.max(cards.length, 1)) * 100)}%`, detail: `${learnedCount} mastered cards` },
-            { label: "Reviews this week", value: weeklyLogs.length, detail: "Cards practiced in the last 7 days" },
+            { label: "Reviews this week", value: weeklyLogs.length, detail: `${dayBuckets.filter((day) => day.goalMet).length} of 7 days met your goal` },
             { label: "Accuracy", value: `${accuracy}%`, detail: `${knownReviews} remembered · ${logs.length - knownReviews} forgotten` },
             { label: "Retention rate", value: `${retentionRate}%`, detail: `${retainedCards.length} cards without a recorded lapse` },
             { label: "Estimated mastery", value: estimatedMastery, detail: unfinishedCount ? `${unfinishedCount} cards still in progress` : "Every card is mastered", compact: true },
@@ -1210,8 +1383,71 @@ export default function FlashcardApp() {
         );
     }
 
+    function renderTransferTools() {
+        return <section className="surface-panel"><div className="panel-heading"><div><h2>Vocabulary backup</h2><p className="panel-subtitle">Move your words between Lexicon Loop and other study tools.</p></div><Download size={17} color="var(--sage)" /></div><div className="settings-list"><div className="setting-row"><div className="setting-copy"><strong>Import vocabulary</strong><span>CSV, JSON, or Anki tab-separated text.</span></div><div className="setting-control"><input ref={importFileRef} type="file" accept=".csv,.json,.txt,.tsv,text/csv,application/json,text/plain" hidden onChange={(event) => void importVocabulary(event)} /><button className="ghost-button" disabled={transferBusy} onClick={() => importFileRef.current?.click()}><Upload size={14} />{transferBusy ? "Importing..." : "Choose file"}</button></div></div><div className="setting-row"><div className="setting-copy"><strong>Export CSV</strong><span>Spreadsheet-friendly, with folder and language details.</span></div><button className="ghost-button" onClick={() => exportVocabulary("csv")}><Download size={14} /> CSV</button></div><div className="setting-row"><div className="setting-copy"><strong>Export JSON</strong><span>Keep a structured backup of your vocabulary.</span></div><button className="ghost-button" onClick={() => exportVocabulary("json")}><Download size={14} /> JSON</button></div><div className="setting-row"><div className="setting-copy"><strong>Export Anki</strong><span>Tab-separated front, back, and example fields.</span></div><button className="ghost-button" onClick={() => exportVocabulary("anki")}><Download size={14} /> TXT</button></div></div>{transferStatus && <div className="form-note" role="status" aria-live="polite">{transferStatus}</div>}</section>;
+    }
+
     function renderSettings() {
-        return <section className="surface-panel"><div className="panel-heading"><h2>Learning setup</h2><ShieldCheck size={17} color="var(--sage)" /></div><div className="settings-list"><div className="setting-row"><div className="setting-copy"><strong>Workspace</strong><span>Switch your learning shelf.</span></div><div className="setting-control"><select value={workspace} onChange={(event) => void switchWorkspace(event.target.value)}>{(cloudMode ? workspaces.map((item) => item.name) : ["Arda's notebook", "Travel words", "Reading shelf"]).map((item) => <option key={item}>{item}</option>)}</select><button className="icon-button" onClick={() => void addWorkspace()} aria-label="Create workspace"><CirclePlus size={15} /></button></div></div><div className="setting-row"><div className="setting-copy"><strong>New cards per day</strong><span>Keep the first step light.</span></div><select defaultValue="20"><option>10</option><option>20</option><option>30</option></select></div><div className="setting-row"><div className="setting-copy"><strong>Dark mode</strong><span>Use a lower-light palette.</span></div><button className={`toggle ${darkMode ? "on" : ""}`} onClick={() => setDarkMode((value) => !value)} aria-label="Toggle dark mode"><i /></button></div><div className="setting-row"><div className="setting-copy"><strong>Sync status</strong><span>{syncStatus || (cloudMode ? "Connected to Supabase" : "Local demo mode")}</span></div><span className="state-tag state-review">{cloudMode ? "Cloud" : "Local"}</span></div><div className="setting-row"><div className="setting-copy"><strong>Keyboard shortcuts</strong><span>Reveal with Space, rate with 1-4.</span></div><Keyboard size={18} color="var(--muted)" /></div><div className="setting-row"><div className="setting-copy"><strong>Account</strong><span>Sign out from this workspace.</span></div><button className="ghost-button" onClick={() => void signOut()}><LogOut size={14} /> Sign out</button></div></div></section>;
+        return <>{renderPreferences()}{renderTransferTools()}</>;
+    }
+
+    function renderDailyGoalProgress() {
+        const progress = Math.min((todayLogs.length / dailyGoal) * 100, 100);
+        const streak = calculateStreak(logs);
+        const streakDay = streak ? ((streak - 1) % 7) + 1 : 0;
+        return <div className="daily-goal-progress">
+            <div className="daily-goal-metric"><div className="daily-goal-copy"><strong>Today&apos;s goal</strong><span>{todayLogs.length} / {dailyGoal} reviews{progress >= 100 ? " · Complete" : ""}</span></div><div className="goal-progress-track" role="progressbar" aria-label="Daily review goal" aria-valuemin={0} aria-valuemax={dailyGoal} aria-valuenow={Math.min(todayLogs.length, dailyGoal)}><span style={{ width: `${progress}%` }} /></div></div>
+            <div className="daily-goal-metric streak-milestone-progress"><div className="daily-goal-copy"><strong>Learning streak</strong><span>{streakDay} / 7 day milestone</span></div><div className="goal-progress-track" role="progressbar" aria-label="Seven-day streak milestone" aria-valuemin={0} aria-valuemax={7} aria-valuenow={streakDay}><span style={{ width: `${(streakDay / 7) * 100}%` }} /></div></div>
+        </div>;
+    }
+
+    async function toggleDailyReminder() {
+        if (dailyReminderEnabled) {
+            setDailyReminderEnabled(false);
+            window.localStorage.setItem("lexicon-loop-daily-reminder", JSON.stringify({ enabled: false, time: dailyReminderTime }));
+            setReminderStatus("Daily reminder turned off.");
+            return;
+        }
+        if (typeof Notification === "undefined" || !("serviceWorker" in navigator)) {
+            setReminderStatus("This browser does not support web notifications.");
+            return;
+        }
+        try {
+            const permission = await Notification.requestPermission();
+            if (permission !== "granted") {
+                setReminderStatus(permission === "denied" ? "Notifications are blocked in your browser settings." : "Allow notifications to enable reminders.");
+                return;
+            }
+            await navigator.serviceWorker.register("/reminder-sw.js");
+            await navigator.serviceWorker.ready;
+            setDailyReminderEnabled(true);
+            window.localStorage.setItem("lexicon-loop-daily-reminder", JSON.stringify({ enabled: true, time: dailyReminderTime }));
+            setReminderStatus("Daily reminder enabled.");
+        } catch {
+            setReminderStatus("Could not enable notifications. Try again from a secure connection.");
+        }
+    }
+
+    function updateDailyReminderTime(time: string) {
+        setDailyReminderTime(time);
+        window.localStorage.setItem("lexicon-loop-daily-reminder", JSON.stringify({ enabled: dailyReminderEnabled, time }));
+    }
+
+    function renderPreferences() {
+        return <section className="surface-panel">
+            <div className="panel-heading"><h2>Learning setup</h2><ShieldCheck size={17} color="var(--sage)" /></div>
+            <div className="settings-list">
+                <div className="setting-row"><div className="setting-copy"><strong>Workspace</strong><span>Switch your learning shelf.</span></div><div className="setting-control"><select value={workspace} onChange={(event) => void switchWorkspace(event.target.value)}>{(cloudMode ? workspaces.map((item) => item.name) : ["Arda's notebook", "Travel words", "Reading shelf"]).map((item) => <option key={item}>{item}</option>)}</select><button className="icon-button" onClick={() => void addWorkspace()} aria-label="Create workspace"><CirclePlus size={15} /></button></div></div>
+                <div className="setting-row"><div className="setting-copy"><strong>Daily review goal</strong><span>Reviews to complete each day.</span></div><select aria-label="Daily review goal" value={dailyGoal} onChange={(event) => { const goal = Number(event.target.value); setDailyGoal(goal); window.localStorage.setItem("lexicon-loop-daily-goal", String(goal)); }}><option value={10}>10</option><option value={20}>20</option><option value={30}>30</option></select></div>
+                <div className="setting-row"><div className="setting-copy"><strong>Daily reminder</strong><span>Notify you at this time if your goal is unfinished.</span></div><div className="setting-control"><input className="reminder-time-input" type="time" aria-label="Reminder time" value={dailyReminderTime} onChange={(event) => updateDailyReminderTime(event.target.value)} /><button type="button" className="ghost-button" aria-pressed={dailyReminderEnabled} onClick={() => void toggleDailyReminder()}><Bell size={14} />{dailyReminderEnabled ? "Turn off" : "Enable"}</button></div></div>
+                {reminderStatus && <p className="stats-note" role="status" aria-live="polite">{reminderStatus}</p>}
+                <p className="stats-note">Reminders are checked while Lexicon Loop is open. Background delivery while the app is closed requires a push server.</p>
+                <div className="setting-row"><div className="setting-copy"><strong>Dark mode</strong><span>Use a lower-light palette.</span></div><button className={`toggle ${darkMode ? "on" : ""}`} onClick={() => setDarkMode((value) => !value)} aria-label="Toggle dark mode"><i /></button></div>
+                <div className="setting-row"><div className="setting-copy"><strong>Sync status</strong><span>{syncStatus || (cloudMode ? "Connected to Supabase" : "Local demo mode")}</span></div><span className="state-tag state-review">{cloudMode ? "Cloud" : "Local"}</span></div>
+                <div className="setting-row"><div className="setting-copy"><strong>Keyboard shortcuts</strong><span>Reveal with Space, rate with 1-4.</span></div><Keyboard size={18} color="var(--muted)" /></div>
+                <div className="setting-row"><div className="setting-copy"><strong>Account</strong><span>Sign out from this workspace.</span></div><button className="ghost-button" onClick={() => void signOut()}><LogOut size={14} /> Sign out</button></div>
+            </div>
+        </section>;
     }
 
     return <div className="app-shell"><aside className="sidebar"><div className="brand"><div className="brand-mark"><BookOpenCheck size={17} /></div><span className="brand-name">Lexicon Loop</span></div><div className="workspace-label">Workspace</div><div className="workspace-picker"><span className="workspace-dot" /><span style={{ flex: 1 }}>Arda&apos;s notebook</span><ChevronDown size={14} color="var(--muted)" /></div><nav className="nav-group" aria-label="Main navigation">{navItems.map(({ id, label, icon: Icon }) => <button className={`nav-button ${activeView === id ? "active" : ""}`} key={id} onClick={() => { setActiveView(id); setIsFlipped(false); }}><Icon size={16} />{label}{id === "review" && dueCount > 0 && <span className="nav-count">{dueCount}</span>}</button>)}<button className={`nav-button ${activeView === "settings" ? "active" : ""}`} onClick={() => setActiveView("settings")}><Settings2 size={16} />Settings</button></nav><div className="sidebar-spacer" /><div className="sidebar-profile"><div className="avatar">AK</div><div className="profile-copy"><strong>Arda Kaya</strong><span>Free workspace</span></div><Menu size={16} color="var(--muted)" /></div></aside><div className="main-area"><div className="topbar-mobile"><div className="mobile-brand"><div className="brand-mark"><BookOpenCheck size={15} /></div>Lexicon Loop</div><button className="icon-button" onClick={openAddModal} aria-label="Add word"><CirclePlus size={18} /></button></div><main className="page-wrap">{activeView !== "add" && activeView !== "add-folder" && <header className="page-header"><div><div className="eyebrow">{activeView === "review" ? "Tuesday · 08 September 2026" : "Your library"}</div><h1>{titleForView[activeView]}</h1><p>{subtitleForView[activeView]}</p></div><div className="header-actions"><button className="icon-button" aria-label="Search" onClick={() => setActiveView("words")}><Search size={17} /></button><button className="primary-button" onClick={openAddModal}><CirclePlus size={16} /> Add word</button></div></header>}{activeView === "review" && renderReview()}{activeView === "words" && renderWords()}{activeView === "translate" && renderTranslate()}{activeView === "folders" && renderFolders()}{activeView === "statistics" && renderStatistics()}{activeView === "settings" && renderSettings()}{activeView === "add" && renderAddWord()}{activeView === "add-folder" && renderAddFolder()}</main></div><nav className="mobile-nav" aria-label="Mobile navigation">{navItems.map(({ id, label, icon: Icon }) => <button key={id} className={activeView === id ? "active" : ""} onClick={() => setActiveView(id)}><Icon size={18} /><span>{label}</span></button>)}<button className="add-mobile" onClick={openAddModal}><span><CirclePlus size={17} /></span><small>Add</small></button></nav></div>;

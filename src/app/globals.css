@@ -529,6 +529,61 @@ select.workspace-picker {
     font-size: 11px;
 }
 
+.daily-goal-progress {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    position: relative;
+    z-index: 1;
+    margin: 14px 0 18px;
+    padding: 12px 14px;
+    border: 1px solid rgba(255, 255, 255, .14);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, .06);
+}
+
+.daily-goal-metric {
+    min-width: 0;
+}
+
+.daily-goal-copy {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 9px;
+}
+
+.daily-goal-copy strong {
+    color: #fff;
+    font-size: 12px;
+}
+
+.daily-goal-copy span {
+    color: #aec2ba;
+    font-size: 11px;
+    text-align: right;
+}
+
+.goal-progress-track {
+    height: 6px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, .16);
+}
+
+.goal-progress-track>span {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--yellow);
+    transition: width .25s ease;
+}
+
+.streak-milestone-progress .goal-progress-track>span {
+    background: var(--peach);
+}
+
 .review-controls {
     display: flex;
     align-items: center;
@@ -2441,6 +2496,11 @@ select.workspace-picker {
         min-height: 0;
     }
 
+    .daily-goal-progress {
+        grid-template-columns: 1fr;
+        gap: 14px;
+    }
+
     .review-filter-panel {
         gap: 10px;
         padding: 12px;
@@ -2632,6 +2692,16 @@ select.workspace-picker {
     background: var(--surface);
     border-radius: 6px;
     padding: 7px 22px 7px 8px;
+    color: var(--ink);
+    font-size: 12px;
+}
+
+.reminder-time-input {
+    min-width: 108px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    border-radius: 6px;
+    padding: 6px 8px;
     color: var(--ink);
     font-size: 12px;
 }
