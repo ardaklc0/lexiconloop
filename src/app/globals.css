@@ -1764,7 +1764,7 @@ select.workspace-picker {
 
 .settings-stack {
     display: grid;
-    gap: 12px;
+    gap: 14px;
 }
 
 .setting-row {
@@ -2504,6 +2504,10 @@ select.workspace-picker {
     .daily-goal-progress {
         grid-template-columns: 1fr;
         gap: 14px;
+    }
+
+    .settings-stack {
+        gap: 16px;
     }
 
     .review-filter-panel {
