@@ -1388,7 +1388,7 @@ export default function FlashcardApp() {
     }
 
     function renderSettings() {
-        return <>{renderPreferences()}{renderTransferTools()}</>;
+        return <div className="settings-stack">{renderPreferences()}{renderTransferTools()}</div>;
     }
 
     function renderDailyGoalProgress() {

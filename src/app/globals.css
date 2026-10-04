@@ -1762,6 +1762,11 @@ select.workspace-picker {
     gap: 0;
 }
 
+.settings-stack {
+    display: grid;
+    gap: 12px;
+}
+
 .setting-row {
     display: flex;
     align-items: center;
