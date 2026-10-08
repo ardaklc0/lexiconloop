@@ -60,6 +60,14 @@ type QuizQuestion = {
     explanation: string;
     word: string;
 };
+type ReviewSessionEntry = { logId: string; wordId: string; rating: ReviewRating };
+type ReviewSession = { startedAt: number; entries: ReviewSessionEntry[] };
+type QuizGenerationOptions = {
+    cards?: WordRecord[];
+    questionCount?: number;
+    focusWords?: string[];
+    includeAllCards?: boolean;
+};
 
 type TranslationItem = {
     word: string;
@@ -236,6 +244,9 @@ export default function FlashcardApp() {
     const [quizGenerating, setQuizGenerating] = useState(false);
     const [quizStatus, setQuizStatus] = useState("");
     const [showQuiz, setShowQuiz] = useState(false);
+    const [sessionPracticeQuiz, setSessionPracticeQuiz] = useState(false);
+    const [reviewSession, setReviewSession] = useState<ReviewSession | null>(null);
+    const [showReviewSummary, setShowReviewSummary] = useState(false);
     const [quizCount, setQuizCount] = useState(5);
     const [quizSource, setQuizSource] = useState<"recent" | "random">("recent");
     const [quizSourceLanguage, setQuizSourceLanguage] = useState("all");
@@ -457,6 +468,13 @@ export default function FlashcardApp() {
     const dueCount = queue.length;
     const learnedCount = cards.filter((card) => card.state === "mastered").length;
     const todayLogs = logs.filter((log) => new Date(log.reviewedAt).toDateString() === new Date().toDateString());
+
+    useEffect(() => {
+        if (activeView === "review" && !showQuiz && !showReviewSummary && !isInitialDataLoading && !initialDataError && reviewSession?.entries.length && queue.length === 0) {
+            setShowReviewSummary(true);
+        }
+    }, [activeView, initialDataError, isInitialDataLoading, queue.length, reviewSession?.entries.length, showQuiz, showReviewSummary]);
+
     const visibleCards = useMemo(() => {
         const dayStart = new Date(now);
         dayStart.setHours(0, 0, 0, 0);
@@ -503,6 +521,10 @@ export default function FlashcardApp() {
         const reviewLog = { id: makeId(), wordId: currentCard.id, rating, reviewedAt: reviewedAt.toISOString() };
         setCards((previous) => previous.map((card) => card.id === currentCard.id ? { ...card, ...next } : card));
         setLogs((previous) => [...previous, reviewLog]);
+        setReviewSession((session) => ({
+            startedAt: session?.startedAt ?? reviewedAt.getTime(),
+            entries: [...(session?.entries ?? []), { logId: reviewLog.id, wordId: currentCard.id, rating }],
+        }));
         setIsFlipped(false);
 
         const cloud = getCloudContext();
@@ -513,6 +535,11 @@ export default function FlashcardApp() {
             .catch((error: unknown) => {
                 setCards((previous) => previous.map((card) => card.id === currentCard.id ? currentCard : card));
                 setLogs((previous) => previous.filter((log) => log.id !== reviewLog.id));
+                setReviewSession((session) => {
+                    if (!session) return null;
+                    const entries = session.entries.filter((entry) => entry.logId !== reviewLog.id);
+                    return entries.length ? { ...session, entries } : null;
+                });
                 setSyncStatus(error instanceof Error ? error.message : "Review could not be saved.");
             });
     }, [currentCard, getCloudContext, isFlipped]);
@@ -536,7 +563,10 @@ export default function FlashcardApp() {
     }, [activeView, currentCard, handleReview, isFlipped]);
 
     useEffect(() => {
-        if (activeView !== "review") setShowQuiz(false);
+        if (activeView !== "review") {
+            setShowQuiz(false);
+            setSessionPracticeQuiz(false);
+        }
     }, [activeView]);
 
     useEffect(() => {
@@ -903,8 +933,9 @@ export default function FlashcardApp() {
         }
     }
 
-    async function generateQuiz() {
-        if (!quizCards.length) {
+    async function generateQuiz(options: QuizGenerationOptions = {}) {
+        const sourceCards = options.cards ?? quizCards;
+        if (!sourceCards.length) {
             setQuizStatus("Add a few words before starting a quiz.");
             return;
         }
@@ -915,19 +946,19 @@ export default function FlashcardApp() {
         setQuizAnswer("");
         setQuizSubmitted(false);
         try {
-            const selectedCards = [...quizCards];
-            if (quizSource === "random") {
+            const selectedCards = [...sourceCards];
+            if (!options.focusWords?.length && !options.cards && quizSource === "random") {
                 for (let index = selectedCards.length - 1; index > 0; index -= 1) {
                     const randomIndex = Math.floor(Math.random() * (index + 1));
                     [selectedCards[index], selectedCards[randomIndex]] = [selectedCards[randomIndex], selectedCards[index]];
                 }
             }
-            const quizPool = selectedCards.slice(0, quizCount);
-            const questionCount = quizPool.length;
+            const questionCount = Math.min(options.questionCount ?? quizCount, selectedCards.length);
+            const quizPool = selectedCards.slice(0, options.includeAllCards ? 100 : questionCount);
             const response = await fetch("/api/generate-quiz", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ questionCount, variation: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, cards: quizPool.map((card) => ({ word: card.word, meaning: card.meaning, exampleSentence: card.exampleSentence, sourceLanguage: card.sourceLanguage, targetLanguage: card.targetLanguage, cefrLevel: card.cefrLevel })) }),
+                body: JSON.stringify({ questionCount, focusWords: options.focusWords, variation: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, cards: quizPool.map((card) => ({ word: card.word, meaning: card.meaning, exampleSentence: card.exampleSentence, sourceLanguage: card.sourceLanguage, targetLanguage: card.targetLanguage, cefrLevel: card.cefrLevel })) }),
             });
             const data = await response.json() as { questions?: QuizQuestion[]; error?: string };
             if (!response.ok || !data.questions?.length) throw new Error(data.error ?? "Quiz generation failed");
@@ -937,6 +968,23 @@ export default function FlashcardApp() {
         } finally {
             setQuizGenerating(false);
         }
+    }
+
+    async function startSessionPractice(focusCards: WordRecord[]) {
+        const uniqueFocusCards = Array.from(new Map(focusCards.map((card) => [card.id, card])).values()).slice(0, 5);
+        if (!uniqueFocusCards.length) return;
+        const focusIds = new Set(uniqueFocusCards.map((card) => card.id));
+        const quizPool = [...uniqueFocusCards, ...cards.filter((card) => !focusIds.has(card.id))].slice(0, 100);
+        setQuizSource("recent");
+        setSessionPracticeQuiz(true);
+        setShowReviewSummary(false);
+        setShowQuiz(true);
+        await generateQuiz({
+            cards: quizPool,
+            questionCount: uniqueFocusCards.length,
+            focusWords: uniqueFocusCards.map((card) => card.word),
+            includeAllCards: true,
+        });
     }
 
     async function generateTranslation(event: React.FormEvent<HTMLFormElement>) {
@@ -1105,16 +1153,56 @@ export default function FlashcardApp() {
         setQuizSubmitted(false);
     }
 
+    function renderReviewSessionSummary() {
+        if (!reviewSession) return null;
+        const forgotten = reviewSession.entries.filter((entry) => entry.rating === "forgot");
+        const hard = reviewSession.entries.filter((entry) => entry.rating === "hard");
+        const remembered = reviewSession.entries.filter((entry) => entry.rating === "good" || entry.rating === "easy");
+        const sessionFocusIds = new Set([...forgotten, ...hard].map((entry) => entry.wordId));
+        const sessionFocusCards = cards.filter((card) => sessionFocusIds.has(card.id));
+        const historicFocusCards = cards
+            .filter((card) => card.lapses > 0 && !sessionFocusIds.has(card.id))
+            .sort((first, second) => second.lapses - first.lapses);
+        const practiceCards = [...sessionFocusCards, ...historicFocusCards]
+            .filter((card, index, allCards) => allCards.findIndex((item) => item.id === card.id) === index)
+            .slice(0, 5);
+        const elapsedMinutes = Math.max(1, Math.round((Date.now() - reviewSession.startedAt) / 60_000));
+        const goalReached = todayLogs.length >= dailyGoal;
+
+        return <div className="empty-stage session-summary" role="status">
+            <div>
+                <div className="eyebrow">Review session complete</div>
+                <h2>Good work. Here&apos;s your recap.</h2>
+                <p>{reviewSession.entries.length} cards in {elapsedMinutes} min · {goalReached ? `Daily goal reached (${todayLogs.length}/${dailyGoal})` : `${todayLogs.length}/${dailyGoal} reviews toward today’s goal`}</p>
+                <div className="session-summary-stats">
+                    <div><strong>{reviewSession.entries.length}</strong><span>Reviewed</span></div>
+                    <div><strong>{remembered.length}</strong><span>Remembered</span></div>
+                    <div><strong>{hard.length}</strong><span>Hard</span></div>
+                    <div><strong>{forgotten.length}</strong><span>Forgot</span></div>
+                </div>
+                {(hard.length > 0 || forgotten.length > 0) && <p className="session-summary-note">Your Hard and Forgot cards are ready for a short AI practice.</p>}
+                {practiceCards.length > 0 && <button className="primary-button" onClick={() => void startSessionPractice(practiceCards)} disabled={quizGenerating}><Sparkles size={15} />{quizGenerating ? "Preparing practice..." : `AI practice · ${Math.min(5, practiceCards.length)} words`}</button>}
+                <div className="session-summary-actions">
+                    {queue.length > 0 && <button className="ghost-button" onClick={() => setShowReviewSummary(false)}>Continue review</button>}
+                    <button className="ghost-button" onClick={() => { setReviewSession(null); setShowReviewSummary(false); }}>Done for now</button>
+                </div>
+            </div>
+        </div>;
+    }
+
     function renderQuiz() {
         const isFinished = quizQuestions.length > 0 && quizIndex >= quizQuestions.length;
         const isCorrect = currentQuizQuestion ? normalizeQuizAnswer(quizAnswer) === normalizeQuizAnswer(currentQuizQuestion.answer) : false;
         return <section className="quiz-page">
-            <button className="ghost-button quiz-back-button" onClick={() => setShowQuiz(false)}><ArrowLeft size={14} /> Back to review</button>
-            <div className="quiz-intro surface-panel"><div><div className="eyebrow">Personal practice</div><h2>Learn by retrieval</h2><p>Questions are built from your vocabulary and reshuffled for each new quiz.</p></div><div className="quiz-settings"><label>Questions<input type="number" min="1" max="50" step="1" value={quizCount} onChange={(event) => setQuizCount(Math.min(50, Math.max(1, Number(event.target.value) || 1)))} /></label><label>Words<select value={quizSource} onChange={(event) => setQuizSource(event.target.value as "recent" | "random")}><option value="recent">Recent</option><option value="random">Random</option></select></label><button className="primary-button" onClick={() => void generateQuiz()} disabled={quizGenerating || !quizCards.length}><Sparkles size={15} />{quizGenerating ? "Generating..." : quizQuestions.length ? "New quiz" : "Generate quiz"}</button></div></div>
-            <div className="filter-panel quiz-filter-panel"><div className="filter-panel-head"><strong>Quiz filters</strong><button type="button" className="text-button" onClick={clearQuizFilters}>Clear</button></div><div className="filter-grid"><label>Source language<select value={quizSourceLanguage} onChange={(event) => setQuizSourceLanguage(event.target.value)}><option value="all">All</option>{availableSourceLanguages.map((language) => <option value={language} key={language}>{language}</option>)}</select></label><label>Target language<select value={quizTargetLanguage} onChange={(event) => setQuizTargetLanguage(event.target.value)}><option value="all">All</option>{availableTargetLanguages.map((language) => <option value={language} key={language}>{language}</option>)}</select></label><label>Folder<select value={quizFolderId} onChange={(event) => setQuizFolderId(event.target.value)}><option value="all">All</option><option value="unsorted">Unsorted</option>{folders.map((folder) => <option value={folder.id} key={folder.id}>{folder.name}</option>)}</select></label><label>CEFR<select value={quizCefrLevel} onChange={(event) => setQuizCefrLevel(event.target.value as CefrLevel | "all")}><option value="all">All</option>{cefrLevels.map((level) => <option value={level} key={level}>{level}</option>)}</select></label><label>Card state<select value={quizCardState} onChange={(event) => setQuizCardState(event.target.value as CardState | "all")}><option value="all">All</option><option value="new">New</option><option value="learning">Learning</option><option value="review">Review</option><option value="mastered">Mastered</option></select></label></div><div className="filter-result-count">{quizCards.length} {quizCards.length === 1 ? "word" : "words"} match these filters.</div></div>
+            <button className="ghost-button quiz-back-button" onClick={() => { setShowQuiz(false); if (sessionPracticeQuiz) { setSessionPracticeQuiz(false); setShowReviewSummary(true); } }}><ArrowLeft size={14} />{sessionPracticeQuiz ? "Back to recap" : "Back to review"}</button>
+            <div className="quiz-intro surface-panel">
+                <div><div className="eyebrow">{sessionPracticeQuiz ? "Focused practice" : "Personal practice"}</div><h2>{sessionPracticeQuiz ? "Strengthen difficult words." : "Learn by retrieval"}</h2><p>{sessionPracticeQuiz ? "AI questions focus on words you marked Forgot or Hard." : "Questions are built from your vocabulary and reshuffled for each new quiz."}</p></div>
+                {sessionPracticeQuiz ? <div className="session-practice-label"><Sparkles size={15} />Practice only · does not change your review schedule</div> : <div className="quiz-settings"><label>Questions<input type="number" min="1" max="50" step="1" value={quizCount} onChange={(event) => setQuizCount(Math.min(50, Math.max(1, Number(event.target.value) || 1)))} /></label><label>Words<select value={quizSource} onChange={(event) => setQuizSource(event.target.value as "recent" | "random")}><option value="recent">Recent</option><option value="random">Random</option></select></label><button className="primary-button" onClick={() => void generateQuiz()} disabled={quizGenerating || !quizCards.length}><Sparkles size={15} />{quizGenerating ? "Generating..." : quizQuestions.length ? "New quiz" : "Generate quiz"}</button></div>}
+            </div>
+            {!sessionPracticeQuiz && <div className="filter-panel quiz-filter-panel"><div className="filter-panel-head"><strong>Quiz filters</strong><button type="button" className="text-button" onClick={clearQuizFilters}>Clear</button></div><div className="filter-grid"><label>Source language<select value={quizSourceLanguage} onChange={(event) => setQuizSourceLanguage(event.target.value)}><option value="all">All</option>{availableSourceLanguages.map((language) => <option value={language} key={language}>{language}</option>)}</select></label><label>Target language<select value={quizTargetLanguage} onChange={(event) => setQuizTargetLanguage(event.target.value)}><option value="all">All</option>{availableTargetLanguages.map((language) => <option value={language} key={language}>{language}</option>)}</select></label><label>Folder<select value={quizFolderId} onChange={(event) => setQuizFolderId(event.target.value)}><option value="all">All</option><option value="unsorted">Unsorted</option>{folders.map((folder) => <option value={folder.id} key={folder.id}>{folder.name}</option>)}</select></label><label>CEFR<select value={quizCefrLevel} onChange={(event) => setQuizCefrLevel(event.target.value as CefrLevel | "all")}><option value="all">All</option>{cefrLevels.map((level) => <option value={level} key={level}>{level}</option>)}</select></label><label>Card state<select value={quizCardState} onChange={(event) => setQuizCardState(event.target.value as CardState | "all")}><option value="all">All</option><option value="new">New</option><option value="learning">Learning</option><option value="review">Review</option><option value="mastered">Mastered</option></select></label></div><div className="filter-result-count">{quizCards.length} {quizCards.length === 1 ? "word" : "words"} match these filters.</div></div>}
             {quizStatus && <div className="form-note">{quizStatus}</div>}
-            {!quizQuestions.length && !quizStatus && <div className="quiz-empty surface-panel"><ListChecks size={30} /><h2>Your next {Math.min(quizCount, quizCards.length || quizCount)} questions</h2><p>Generate a mix of multiple-choice and fill-in-the-blank questions from your filtered vocabulary.</p></div>}
-            {isFinished && <div className="quiz-empty surface-panel"><Check size={30} /><h2>Quiz complete</h2><p>You finished {quizQuestions.length} questions. A fresh set will use your current review queue.</p><button className="ghost-button" onClick={() => void generateQuiz()}>Try another set</button></div>}
+            {!quizQuestions.length && !quizStatus && <div className="quiz-empty surface-panel"><ListChecks size={30} /><h2>{sessionPracticeQuiz ? "Preparing your focused questions..." : `Your next ${Math.min(quizCount, quizCards.length || quizCount)} questions`}</h2><p>{sessionPracticeQuiz ? "The questions will focus on the words you found difficult." : "Generate a mix of multiple-choice and fill-in-the-blank questions from your filtered vocabulary."}</p></div>}
+            {isFinished && <div className="quiz-empty surface-panel"><Check size={30} /><h2>{sessionPracticeQuiz ? "Practice complete" : "Quiz complete"}</h2><p>You finished {quizQuestions.length} questions{sessionPracticeQuiz ? ". These answers did not change your review schedule." : ". A fresh set will use your current review queue."}</p><button className="ghost-button" onClick={() => { setShowQuiz(false); if (sessionPracticeQuiz) { setSessionPracticeQuiz(false); setShowReviewSummary(true); } }}>{sessionPracticeQuiz ? "Back to recap" : "Back to review"}</button></div>}
             {currentQuizQuestion && !isFinished && <div className="quiz-question surface-panel"><div className="quiz-question-head"><span>Question {quizIndex + 1} of {quizQuestions.length}</span><span>{currentQuizQuestion.type === "multiple-choice" ? "Multiple choice" : "Fill in the blank"}</span></div><div className="quiz-progress"><span style={{ width: `${((quizIndex + 1) / quizQuestions.length) * 100}%` }} /></div><h2>{currentQuizQuestion.prompt}</h2><div className="quiz-options">{currentQuizQuestion.options?.map((option) => <button className={`quiz-option ${!quizSubmitted && option === quizAnswer ? "selected" : ""} ${quizSubmitted && option === currentQuizQuestion.answer ? "correct" : ""} ${quizSubmitted && option === quizAnswer && option !== currentQuizQuestion.answer ? "incorrect" : ""}`} key={option} onClick={() => { if (!quizSubmitted) setQuizAnswer(option); }} disabled={quizSubmitted}>{option}</button>)}</div>{quizSubmitted && <div className={`quiz-feedback ${isCorrect ? "correct" : "incorrect"}`}><strong>{isCorrect ? "Correct" : `Correct answer: ${currentQuizQuestion.answer}`}</strong><span>{currentQuizQuestion.explanation || (quizAnswer.trim() ? "Keep practicing this word." : "The answer is shown above. Try to remember it for next time.")}</span></div>}<div className="quiz-actions">{!quizSubmitted ? <button className="primary-button" onClick={submitQuizAnswer}>Check answer</button> : <button className="primary-button" onClick={nextQuizQuestion}>{quizIndex + 1 === quizQuestions.length ? "Finish" : "Next question"}<ArrowRight size={15} /></button>}</div></div>}
         </section>;
     }
@@ -1196,10 +1284,11 @@ export default function FlashcardApp() {
                     <div className="stage-head">
                         <div className="stage-progress"><span>{isInitialDataLoading ? "Loading vocabulary..." : initialDataError ? "Could not load vocabulary" : `${dueCount} due · ${reviewCards.length} total`}</span><div className="progress-track"><div className="progress-fill" style={{ width: `${Math.max(7, Math.min(100, ((reviewCards.length - dueCount) / Math.max(reviewCards.length, 1)) * 100))}%` }} /></div></div><button className="ghost-button quiz-launch-button" onClick={() => setShowQuiz(true)} disabled={!quizCards.length}><ListChecks size={14} /> Quiz</button>
                         <div className="review-controls">
+                            {reviewSession?.entries.length ? <button type="button" className="ghost-button filter-toggle" onClick={() => setShowReviewSummary(true)}><Check size={14} /> Finish</button> : null}
                             <button className={`ghost-button filter-toggle ${reviewFiltersOpen ? "active" : ""}`} onClick={() => setReviewFiltersOpen((value) => !value)}><Settings2 size={14} /> Filters</button>
                         </div>
                     </div>
-                    {!isInitialDataLoading && !initialDataError && renderDailyGoalProgress()}
+                    {!isInitialDataLoading && !initialDataError && !showReviewSummary && renderDailyGoalProgress()}
                     {reviewFiltersOpen && <div className="filter-panel review-filter-panel">
                         <div className="filter-panel-head"><strong>Review set</strong><button type="button" className="text-button" onClick={clearReviewFilters}>Clear</button></div>
                         <div className="filter-grid">
@@ -1211,7 +1300,7 @@ export default function FlashcardApp() {
                             <label>Sort<select value={reviewSort} onChange={(event) => setReviewSort(event.target.value as ReviewSort)}><option value="oldest-due">Oldest due</option><option value="most-errors">Most errors</option><option value="random">Random</option></select></label>
                         </div>
                     </div>}
-                    {isInitialDataLoading ? <div className="empty-stage" role="status"><div><h2>Loading your vocabulary...</h2><p>Your review queue is on its way.</p></div></div> : initialDataError ? <div className="empty-stage" role="alert"><div><X size={30} /><h2>Could not load your vocabulary.</h2><p>{initialDataError}</p><button className="primary-button" style={{ marginTop: 22 }} onClick={() => window.location.reload()}>Try again</button></div></div> : cards.length === 0 ? <div className="empty-stage"><div><BookOpenCheck size={30} /><h2>Your vocabulary starts here.</h2><p>Add your first word to start a review queue.</p><button className="primary-button" style={{ marginTop: 22 }} onClick={openAddModal}>Add your first word <ArrowRight size={14} /></button></div></div> : currentCard ? <>
+                    {isInitialDataLoading ? <div className="empty-stage" role="status"><div><h2>Loading your vocabulary...</h2><p>Your review queue is on its way.</p></div></div> : initialDataError ? <div className="empty-stage" role="alert"><div><X size={30} /><h2>Could not load your vocabulary.</h2><p>{initialDataError}</p><button className="primary-button" style={{ marginTop: 22 }} onClick={() => window.location.reload()}>Try again</button></div></div> : showReviewSummary && reviewSession ? renderReviewSessionSummary() : cards.length === 0 ? <div className="empty-stage"><div><BookOpenCheck size={30} /><h2>Your vocabulary starts here.</h2><p>Add your first word to start a review queue.</p><button className="primary-button" style={{ marginTop: 22 }} onClick={openAddModal}>Add your first word <ArrowRight size={14} /></button></div></div> : currentCard ? <>
                         <div className="flashcard-wrap" onTouchStart={(event) => { const touch = event.changedTouches[0]; touchStart.current = touch ? { x: touch.clientX, y: touch.clientY } : null; }} onTouchEnd={(event) => { const touch = event.changedTouches[0]; const start = touchStart.current; touchStart.current = null; if (!start || !touch || !isFlipped) return; const deltaX = touch.clientX - start.x; const deltaY = touch.clientY - start.y; if (Math.abs(deltaX) > 65 && Math.abs(deltaX) > Math.abs(deltaY) * 1.25) handleReview(deltaX > 0 ? "good" : "forgot"); }} onTouchCancel={() => { touchStart.current = null; }}>
                             <div className="flashcard-shell"><div className={`flashcard ${isFlipped ? "flipped" : ""}`} onClick={() => setIsFlipped((value) => !value)} role="button" tabIndex={0} aria-label={isFlipped ? "Hide answer" : "Reveal answer"} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") setIsFlipped((value) => !value); }}>
                                 <div className="card-face card-front"><div className="card-topline"><span>{currentCard.sourceLanguage}</span></div><div className="card-word-row"><div className={`card-word ${currentCard.word.length > 16 ? "card-word-long" : ""}`}>{currentCard.word}</div></div>{currentCard.exampleSentence && <div className="card-example"><span>Example</span>{currentCard.exampleSentence}</div>}<div className="card-hint"><Eye size={14} /> Tap to reveal</div></div>

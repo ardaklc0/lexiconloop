@@ -46,20 +46,29 @@ export async function POST(request: Request) {
     }
 
     try {
-        const body = await request.json() as { questionCount?: number; variation?: string; cards?: QuizCard[] };
+        const body = await request.json() as { questionCount?: number; variation?: string; focusWords?: string[]; cards?: QuizCard[] };
         const questionCount = Number.isInteger(body.questionCount) ? Math.min(50, Math.max(1, body.questionCount as number)) : 5;
         const cards = (body.cards ?? []).filter((card) => typeof card.word === "string" && card.word.trim()).slice(0, 100);
         if (!cards.length) {
             return NextResponse.json({ error: "Add a few words before starting a quiz." }, { status: 400 });
         }
+        const availableWords = new Set(cards.map((card) => normalizeQuizText(card.word ?? "")));
+        const focusWords = Array.from(new Set((body.focusWords ?? [])
+            .filter((word): word is string => typeof word === "string" && Boolean(word.trim()))
+            .filter((word) => availableWords.has(normalizeQuizText(word))))).slice(0, questionCount);
+        const focusWordSet = new Set(focusWords.map(normalizeQuizText));
 
         const client = new GoogleGenerativeAI(apiKey);
         const model = client.getGenerativeModel({
             model: "gemini-2.5-flash-lite",
             generationConfig: { responseMimeType: "application/json", temperature: 0.35 },
         });
+        const focusInstructions = focusWords.length
+            ? `FOCUS WORDS: ${JSON.stringify(focusWords)}. Make each of the first ${focusWords.length} questions practice a different focus word. Do not use non-focus words as question answers until every focus word has been tested.`
+            : "";
         const prompt = `You are creating a personalized vocabulary quiz.
 Create exactly ${questionCount} questions from the learner's word list below. Use a balanced mix of multiple-choice and fill-blank questions. Do not repeat a word until every word has been used; if more questions are requested than words available, reuse words with a different question format or context. This is quiz variation ${body.variation ?? "fresh"}; write fresh prompts and explanations.
+    ${focusInstructions}
 For multiple-choice questions, create exactly 4 options: one correct answer and three plausible but incorrect distractors.
 For multiple-choice questions, never include the correct answer text in the prompt. The prompt may mention the source word, but it must not reveal the answer or any translation.
 For fill-blank questions, use one exampleSentence from the word list and replace the exact source-language word or phrase with "_____". The prompt must remain a natural sentence in the source language, and the answer must be that exact source-language word or phrase. Never ask for a translation in a fill-blank question. Never write instructions such as "Use the English word from the list".
@@ -112,13 +121,25 @@ ${JSON.stringify(cards)}`;
             } satisfies QuizQuestion;
         }).filter((question): question is QuizQuestion => question !== null).slice(0, questionCount) : [];
 
-        const completedQuestions = [...questions];
+        const completedFocusWords = new Set<string>();
+        const completedQuestions = focusWords.length
+            ? questions.filter((question) => {
+                const word = normalizeQuizText(question.word);
+                if (!focusWordSet.has(word) || completedFocusWords.has(word)) return false;
+                completedFocusWords.add(word);
+                return true;
+            })
+            : [...questions];
         const fallbackCards = cards.filter((card): card is QuizCard & { word: string } => Boolean(card.word?.trim()));
         let fallbackIndex = 0;
         while (completedQuestions.length < questionCount && fallbackCards.length >= 4) {
-            const card = fallbackCards[fallbackIndex % fallbackCards.length];
-            fallbackIndex += 1;
+            const card = focusWords.length
+                ? fallbackCards.find((candidate) => focusWordSet.has(normalizeQuizText(candidate.word)) && !completedFocusWords.has(normalizeQuizText(candidate.word)))
+                : fallbackCards[fallbackIndex % fallbackCards.length];
+            if (!card) break;
+            if (!focusWords.length) fallbackIndex += 1;
             const answerWord = card.word.trim();
+            completedFocusWords.add(normalizeQuizText(answerWord));
             const distractors = shuffle(fallbackCards
                 .map((item) => item.word.trim())
                 .filter((word) => normalizeQuizText(word) !== normalizeQuizText(answerWord))
