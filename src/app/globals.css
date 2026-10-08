@@ -2696,13 +2696,21 @@ select.workspace-picker {
     }
 }
 
-.setting-row select {
+.setting-row select,
+.daily-goal-input {
     border: 1px solid var(--line);
     background: var(--surface);
     border-radius: 6px;
     padding: 7px 22px 7px 8px;
     color: var(--ink);
     font-size: 12px;
+}
+
+.daily-goal-input {
+    width: 104px;
+    min-width: 104px;
+    padding-right: 8px;
+    font-size: 16px;
 }
 
 .reminder-time-input {

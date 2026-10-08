@@ -17,7 +17,7 @@ Open `http://localhost:3000`. The app requires Supabase configuration and an aut
 
 1. Create a Supabase project.
 2. Copy `.env.example` to `.env.local` and add the project URL and anon key.
-3. Run `supabase/migrations/001_initial_schema.sql` through `supabase/migrations/007_daily_push_reminders.sql` in numeric order in the Supabase SQL editor. If earlier migrations are already applied, run only the missing migrations.
+3. Run `supabase/migrations/001_initial_schema.sql` through `supabase/migrations/008_custom_daily_review_goal.sql` in numeric order in the Supabase SQL editor. If earlier migrations are already applied, run only the missing migrations.
 4. The schema enables RLS for profiles, folders, words, progress, and review logs. Foreign keys cascade progress and logs when a word is deleted, while deleting a folder leaves its words unsorted. Review progress and its history log are saved together by the `save_review` database function.
 
 Create users in Supabase Auth with a password. Any user with an existing Supabase account can sign in; the app uses direct `signInWithPassword` and does not provide a register flow.
@@ -28,7 +28,7 @@ The Supabase browser/server helpers and CRUD mapping live in `src/lib/supabase`.
 
 Push reminders use standard Web Push with Supabase Cron and an Edge Function. A reminder is sent once per user's local day, only if their daily review goal is still unfinished. Supabase Free includes enough scheduled function calls for the once-a-minute timezone check at small scale, but its projects may pause after a week of inactivity.
 
-1. Run `supabase/migrations/007_daily_push_reminders.sql` in the Supabase SQL editor after migrations 001-006.
+1. Run `supabase/migrations/007_daily_push_reminders.sql` after migrations 001-006, then `supabase/migrations/008_custom_daily_review_goal.sql`, in the Supabase SQL editor.
 2. Generate a VAPID key pair locally with `node scripts/generate-vapid-keys.mjs`. Copy `VAPID_PUBLIC_KEY` into `.env.local` and your Vercel environment variables. This public key is intentionally exposed to the browser by `next.config.mjs`; do not put the private key there. In Supabase Dashboard, open **Edge Functions → Secrets** and add `VAPID_KEYS` (the JSON value printed by the script), `VAPID_CONTACT_EMAIL`, and `PUSH_CRON_SECRET`. Never share or commit the private `VAPID_KEYS` value.
 3. Install the Supabase CLI, then connect and deploy the function:
 

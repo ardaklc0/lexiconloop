@@ -201,6 +201,7 @@ export default function FlashcardApp() {
     const [darkMode, setDarkMode] = useState(false);
     const [now, setNow] = useState(() => Date.now());
     const [dailyGoal, setDailyGoal] = useState(20);
+    const [dailyGoalInput, setDailyGoalInput] = useState("20");
     const [dailyReminderEnabled, setDailyReminderEnabled] = useState(false);
     const [dailyReminderTime, setDailyReminderTime] = useState("20:00");
     const [reminderStatus, setReminderStatus] = useState("");
@@ -400,6 +401,7 @@ export default function FlashcardApp() {
                         setDailyReminderEnabled(reminderSettings.enabled);
                         setDailyReminderTime(String(reminderSettings.reminder_time).slice(0, 5));
                         setDailyGoal(reminderSettings.daily_goal);
+                        setDailyGoalInput(String(reminderSettings.daily_goal));
                         window.localStorage.setItem("lexicon-loop-daily-goal", String(reminderSettings.daily_goal));
                     }
                     setInitialDataError("");
@@ -1467,7 +1469,12 @@ export default function FlashcardApp() {
     }
 
     async function updateDailyGoal(goal: number) {
+        if (!Number.isInteger(goal) || goal < 1 || goal > 32767) {
+            setReminderStatus("Enter a whole-number goal between 1 and 32767.");
+            return;
+        }
         setDailyGoal(goal);
+        setDailyGoalInput(String(goal));
         window.localStorage.setItem("lexicon-loop-daily-goal", String(goal));
         try {
             await saveDailyReminderSettings(dailyReminderEnabled, dailyReminderTime, goal);
@@ -1481,7 +1488,7 @@ export default function FlashcardApp() {
             <div className="panel-heading"><h2>Learning setup</h2><ShieldCheck size={17} color="var(--sage)" /></div>
             <div className="settings-list">
                 <div className="setting-row"><div className="setting-copy"><strong>Workspace</strong><span>Switch your learning shelf.</span></div><div className="setting-control"><select value={workspace} onChange={(event) => void switchWorkspace(event.target.value)}>{(cloudMode ? workspaces.map((item) => item.name) : ["Arda's notebook", "Travel words", "Reading shelf"]).map((item) => <option key={item}>{item}</option>)}</select><button className="icon-button" onClick={() => void addWorkspace()} aria-label="Create workspace"><CirclePlus size={15} /></button></div></div>
-                <div className="setting-row"><div className="setting-copy"><strong>Daily review goal</strong><span>Reviews to complete each day.</span></div><select aria-label="Daily review goal" value={dailyGoal} onChange={(event) => void updateDailyGoal(Number(event.target.value))}><option value={10}>10</option><option value={20}>20</option><option value={30}>30</option></select></div>
+                <div className="setting-row"><div className="setting-copy"><strong>Daily review goal</strong><span>Enter any whole number from 1 to 32767.</span></div><input className="daily-goal-input" type="number" min={1} max={32767} step={1} aria-label="Daily review goal" value={dailyGoalInput} onChange={(event) => setDailyGoalInput(event.currentTarget.value)} onBlur={() => { const goal = Number(dailyGoalInput); if (Number.isInteger(goal) && goal >= 1 && goal <= 32767) void updateDailyGoal(goal); else { setDailyGoalInput(String(dailyGoal)); setReminderStatus("Enter a whole-number goal from 1 to 32767."); } }} /></div>
                 <div className="setting-row"><div className="setting-copy"><strong>Daily push reminder</strong><span>Sent at this time if today&apos;s review goal is unfinished.</span></div><div className="setting-control"><input className="reminder-time-input" type="time" aria-label="Reminder time" value={dailyReminderTime} onChange={(event) => void updateDailyReminderTime(event.target.value)} /><button type="button" className="ghost-button" aria-pressed={dailyReminderEnabled} onClick={() => void toggleDailyReminder()}><Bell size={14} />{dailyReminderEnabled ? "Turn off" : "Enable"}</button></div></div>
                 {reminderStatus && <p className="stats-note" role="status" aria-live="polite">{reminderStatus}</p>}
                 <p className="stats-note">Push reminders can arrive while the app is closed. On iPhone or iPad, add Lexicon Loop to the Home Screen first.</p>
