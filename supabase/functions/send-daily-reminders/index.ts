@@ -32,10 +32,12 @@ function getServiceRoleKey() {
 }
 
 Deno.serve(async (request) => {
+    console.log("Daily reminder request received.");
     if (request.method !== "POST") return jsonResponse({ error: "Method not allowed." }, 405);
 
     const expectedSecret = Deno.env.get("PUSH_CRON_SECRET");
     if (!expectedSecret || request.headers.get("x-cron-secret") !== expectedSecret) {
+        console.warn("Daily reminder request rejected: cron secret did not match.");
         return jsonResponse({ error: "Unauthorized." }, 401);
     }
 
@@ -46,12 +48,15 @@ Deno.serve(async (request) => {
         if (!supabaseUrl || !vapidKeysValue || !contactEmail) {
             throw new Error("Push reminder secrets are not configured.");
         }
+        console.log("Daily reminder secrets are configured.");
 
         const supabase = createClient(supabaseUrl, getServiceRoleKey());
+        console.log("Claiming due reminders.");
         const { data: dueReminders, error: claimError } = await supabase.rpc("claim_due_daily_reminders");
         if (claimError) throw claimError;
 
         const reminders = (dueReminders ?? []) as DueReminder[];
+        console.log("Due reminder claim completed.", { reminderCount: reminders.length });
         if (!reminders.length) return jsonResponse({ sent: 0, checked: true });
 
         const vapidKeys = await webpush.importVapidKeys(JSON.parse(vapidKeysValue), { extractable: false });
@@ -73,6 +78,7 @@ Deno.serve(async (request) => {
                 .eq("user_id", reminder.user_id);
 
             if (subscriptionsError) {
+                console.error("Could not load push subscriptions.", subscriptionsError.message);
                 failed += 1;
                 reminderFailed = true;
                 await supabase
@@ -82,6 +88,7 @@ Deno.serve(async (request) => {
                     .eq("last_sent_on", reminder.local_date);
                 continue;
             }
+            console.log("Push subscriptions loaded.", { subscriptionCount: subscriptions?.length ?? 0 });
 
             for (const subscription of (subscriptions ?? []) as PushSubscriptionRow[]) {
                 try {
@@ -97,14 +104,19 @@ Deno.serve(async (request) => {
                     }), { ttl: 3600 });
                     sent += 1;
                     reminderSent += 1;
+                    console.log("Push service accepted a reminder.");
                 } catch (error) {
                     if (error instanceof webpush.PushMessageError && error.isGone()) {
+                        console.warn("Push subscription is no longer active.");
                         const { error: deleteError } = await supabase
                             .from("push_subscriptions")
                             .delete()
                             .eq("id", subscription.id);
                         if (!deleteError) removed += 1;
                     } else {
+                        console.error("Push service delivery failed.", error instanceof webpush.PushMessageError
+                            ? { status: error.response.status }
+                            : error instanceof Error ? error.message : "Unknown push error.");
                         failed += 1;
                         reminderFailed = true;
                     }
