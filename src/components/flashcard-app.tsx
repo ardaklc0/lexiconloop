@@ -153,6 +153,11 @@ const subtitleForView: Record<View, string> = {
 };
 
 const makeId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+const decodeVapidPublicKey = (value: string) => {
+    const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+    return Uint8Array.from(window.atob(padded), (character) => character.charCodeAt(0));
+};
 const calculateStreak = (logs: ReviewLog[], now = new Date()) => {
     const reviewedDays = new Set(logs.map((log) => {
         const date = new Date(log.reviewedAt);
@@ -270,18 +275,6 @@ export default function FlashcardApp() {
     }, []);
 
     useEffect(() => {
-        const savedReminder = window.localStorage.getItem("lexicon-loop-daily-reminder");
-        if (!savedReminder) return;
-        try {
-            const reminder = JSON.parse(savedReminder) as { enabled?: unknown; time?: unknown };
-            if (typeof reminder.enabled === "boolean") setDailyReminderEnabled(reminder.enabled);
-            if (typeof reminder.time === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(reminder.time)) setDailyReminderTime(reminder.time);
-        } catch {
-            window.localStorage.removeItem("lexicon-loop-daily-reminder");
-        }
-    }, []);
-
-    useEffect(() => {
         const updateNow = () => setNow(Date.now());
         const timer = window.setInterval(updateNow, 1000);
         window.addEventListener("focus", updateNow);
@@ -392,10 +385,23 @@ export default function FlashcardApp() {
                 setWorkspaceId(firstWorkspace.id);
                 setWorkspace(firstWorkspace.name);
                 const remoteData = await loadUserData(supabase, user.id, firstWorkspace.id);
+                const { data: reminderSettings, error: reminderSettingsError } = await supabase
+                    .from("daily_reminder_settings")
+                    .select("enabled, reminder_time, time_zone, daily_goal")
+                    .eq("user_id", user.id)
+                    .maybeSingle();
                 if (!cancelled) {
                     setCards(remoteData.cards);
                     setFolders(remoteData.folders);
                     setLogs(remoteData.logs);
+                    if (reminderSettingsError) {
+                        setReminderStatus("Apply Supabase migration 007 to enable scheduled push reminders.");
+                    } else if (reminderSettings) {
+                        setDailyReminderEnabled(reminderSettings.enabled);
+                        setDailyReminderTime(String(reminderSettings.reminder_time).slice(0, 5));
+                        setDailyGoal(reminderSettings.daily_goal);
+                        window.localStorage.setItem("lexicon-loop-daily-goal", String(reminderSettings.daily_goal));
+                    }
                     setInitialDataError("");
                     setSyncStatus("Synced");
                 }
@@ -449,46 +455,6 @@ export default function FlashcardApp() {
     const dueCount = queue.length;
     const learnedCount = cards.filter((card) => card.state === "mastered").length;
     const todayLogs = logs.filter((log) => new Date(log.reviewedAt).toDateString() === new Date().toDateString());
-    useEffect(() => {
-        if (!dailyReminderEnabled || typeof Notification === "undefined" || Notification.permission !== "granted" || !("serviceWorker" in navigator)) return;
-        let timeout: number | undefined;
-        let cancelled = false;
-
-        const checkReminder = async () => {
-            const current = new Date();
-            const [hour, minute] = dailyReminderTime.split(":").map(Number);
-            const currentMinute = current.getHours() * 60 + current.getMinutes();
-            const reminderMinute = hour * 60 + minute;
-            const dateKey = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, "0")}-${String(current.getDate()).padStart(2, "0")}`;
-            const lastReminderKey = "lexicon-loop-daily-reminder-last-fired";
-
-            if (cards.length && currentMinute >= reminderMinute && todayLogs.length < dailyGoal && window.localStorage.getItem(lastReminderKey) !== dateKey) {
-                try {
-                    const registration = await navigator.serviceWorker.ready;
-                    if (cancelled) return;
-                    const remaining = Math.min(5, dailyGoal - todayLogs.length);
-                    await registration.showNotification("A quick review is waiting", {
-                        body: `${remaining} ${remaining === 1 ? "word" : "words"} are ready for a little practice today.`,
-                        icon: "/icon.svg",
-                        badge: "/icon.svg",
-                        tag: `daily-review-${dateKey}`,
-                        data: { url: "/" },
-                    });
-                    window.localStorage.setItem(lastReminderKey, dateKey);
-                } catch {
-                    if (!cancelled) setReminderStatus("The reminder could not be delivered. Check your browser notification settings.");
-                }
-            }
-
-            if (!cancelled) timeout = window.setTimeout(() => void checkReminder(), 60_000);
-        };
-
-        void checkReminder();
-        return () => {
-            cancelled = true;
-            if (timeout !== undefined) window.clearTimeout(timeout);
-        };
-    }, [cards.length, dailyGoal, dailyReminderEnabled, dailyReminderTime, todayLogs.length]);
     const visibleCards = useMemo(() => {
         const dayStart = new Date(now);
         dayStart.setHours(0, 0, 0, 0);
@@ -1414,36 +1380,100 @@ export default function FlashcardApp() {
         </div>;
     }
 
+    async function saveDailyReminderSettings(enabled: boolean, time: string, goal: number) {
+        const client = supabaseRef.current;
+        const userId = userIdRef.current;
+        if (!client || !userId) throw new Error("Sign in to save reminder settings.");
+        const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+        const { error } = await client.from("daily_reminder_settings").upsert({
+            user_id: userId,
+            enabled,
+            reminder_time: time,
+            time_zone: timeZone,
+            daily_goal: goal,
+        }, { onConflict: "user_id" });
+        if (error) throw new Error(error.message);
+    }
+
     async function toggleDailyReminder() {
         if (dailyReminderEnabled) {
-            setDailyReminderEnabled(false);
-            window.localStorage.setItem("lexicon-loop-daily-reminder", JSON.stringify({ enabled: false, time: dailyReminderTime }));
-            setReminderStatus("Daily reminder turned off.");
+            try {
+                await saveDailyReminderSettings(false, dailyReminderTime, dailyGoal);
+                setDailyReminderEnabled(false);
+                setReminderStatus("Daily push reminder turned off.");
+            } catch (error) {
+                setReminderStatus(error instanceof Error ? error.message : "Could not turn off the reminder.");
+            }
             return;
         }
-        if (typeof Notification === "undefined" || !("serviceWorker" in navigator)) {
-            setReminderStatus("This browser does not support web notifications.");
+
+        if (typeof Notification === "undefined" || !("serviceWorker" in navigator) || !("PushManager" in window)) {
+            setReminderStatus("This browser does not support push notifications.");
             return;
         }
+        if (!window.isSecureContext) {
+            setReminderStatus("Push reminders require HTTPS or localhost.");
+            return;
+        }
+        const vapidPublicKey = process.env.VAPID_PUBLIC_KEY;
+        if (!vapidPublicKey) {
+            setReminderStatus("Finish the VAPID and Supabase setup before enabling push reminders.");
+            return;
+        }
+
         try {
             const permission = await Notification.requestPermission();
             if (permission !== "granted") {
                 setReminderStatus(permission === "denied" ? "Notifications are blocked in your browser settings." : "Allow notifications to enable reminders.");
                 return;
             }
-            await navigator.serviceWorker.register("/reminder-sw.js");
+
+            const registration = await navigator.serviceWorker.register("/reminder-sw.js");
             await navigator.serviceWorker.ready;
+            const subscription = await registration.pushManager.getSubscription() ?? await registration.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: decodeVapidPublicKey(vapidPublicKey) as BufferSource,
+            });
+            const details = subscription.toJSON();
+            if (!details.keys?.auth || !details.keys.p256dh) throw new Error("The browser returned an incomplete push subscription.");
+
+            const client = supabaseRef.current;
+            const userId = userIdRef.current;
+            if (!client || !userId) throw new Error("Sign in to enable push reminders.");
+            const { error: subscriptionError } = await client.from("push_subscriptions").upsert({
+                user_id: userId,
+                endpoint: subscription.endpoint,
+                p256dh: details.keys.p256dh,
+                auth: details.keys.auth,
+            }, { onConflict: "user_id,endpoint" });
+            if (subscriptionError) throw new Error(subscriptionError.message);
+
+            await saveDailyReminderSettings(true, dailyReminderTime, dailyGoal);
             setDailyReminderEnabled(true);
-            window.localStorage.setItem("lexicon-loop-daily-reminder", JSON.stringify({ enabled: true, time: dailyReminderTime }));
-            setReminderStatus("Daily reminder enabled.");
-        } catch {
-            setReminderStatus("Could not enable notifications. Try again from a secure connection.");
+            setReminderStatus("Daily push reminder enabled.");
+        } catch (error) {
+            setReminderStatus(error instanceof Error ? error.message : "Could not enable push reminders.");
         }
     }
 
-    function updateDailyReminderTime(time: string) {
+    async function updateDailyReminderTime(time: string) {
         setDailyReminderTime(time);
-        window.localStorage.setItem("lexicon-loop-daily-reminder", JSON.stringify({ enabled: dailyReminderEnabled, time }));
+        try {
+            await saveDailyReminderSettings(dailyReminderEnabled, time, dailyGoal);
+            setReminderStatus("Reminder time saved.");
+        } catch (error) {
+            setReminderStatus(error instanceof Error ? error.message : "Could not save reminder time.");
+        }
+    }
+
+    async function updateDailyGoal(goal: number) {
+        setDailyGoal(goal);
+        window.localStorage.setItem("lexicon-loop-daily-goal", String(goal));
+        try {
+            await saveDailyReminderSettings(dailyReminderEnabled, dailyReminderTime, goal);
+        } catch (error) {
+            setReminderStatus(error instanceof Error ? error.message : "Could not save daily goal.");
+        }
     }
 
     function renderPreferences() {
@@ -1451,10 +1481,10 @@ export default function FlashcardApp() {
             <div className="panel-heading"><h2>Learning setup</h2><ShieldCheck size={17} color="var(--sage)" /></div>
             <div className="settings-list">
                 <div className="setting-row"><div className="setting-copy"><strong>Workspace</strong><span>Switch your learning shelf.</span></div><div className="setting-control"><select value={workspace} onChange={(event) => void switchWorkspace(event.target.value)}>{(cloudMode ? workspaces.map((item) => item.name) : ["Arda's notebook", "Travel words", "Reading shelf"]).map((item) => <option key={item}>{item}</option>)}</select><button className="icon-button" onClick={() => void addWorkspace()} aria-label="Create workspace"><CirclePlus size={15} /></button></div></div>
-                <div className="setting-row"><div className="setting-copy"><strong>Daily review goal</strong><span>Reviews to complete each day.</span></div><select aria-label="Daily review goal" value={dailyGoal} onChange={(event) => { const goal = Number(event.target.value); setDailyGoal(goal); window.localStorage.setItem("lexicon-loop-daily-goal", String(goal)); }}><option value={10}>10</option><option value={20}>20</option><option value={30}>30</option></select></div>
-                <div className="setting-row"><div className="setting-copy"><strong>Daily reminder</strong><span>Notify you at this time if your goal is unfinished.</span></div><div className="setting-control"><input className="reminder-time-input" type="time" aria-label="Reminder time" value={dailyReminderTime} onChange={(event) => updateDailyReminderTime(event.target.value)} /><button type="button" className="ghost-button" aria-pressed={dailyReminderEnabled} onClick={() => void toggleDailyReminder()}><Bell size={14} />{dailyReminderEnabled ? "Turn off" : "Enable"}</button></div></div>
+                <div className="setting-row"><div className="setting-copy"><strong>Daily review goal</strong><span>Reviews to complete each day.</span></div><select aria-label="Daily review goal" value={dailyGoal} onChange={(event) => void updateDailyGoal(Number(event.target.value))}><option value={10}>10</option><option value={20}>20</option><option value={30}>30</option></select></div>
+                <div className="setting-row"><div className="setting-copy"><strong>Daily push reminder</strong><span>Sent at this time if today&apos;s review goal is unfinished.</span></div><div className="setting-control"><input className="reminder-time-input" type="time" aria-label="Reminder time" value={dailyReminderTime} onChange={(event) => void updateDailyReminderTime(event.target.value)} /><button type="button" className="ghost-button" aria-pressed={dailyReminderEnabled} onClick={() => void toggleDailyReminder()}><Bell size={14} />{dailyReminderEnabled ? "Turn off" : "Enable"}</button></div></div>
                 {reminderStatus && <p className="stats-note" role="status" aria-live="polite">{reminderStatus}</p>}
-                <p className="stats-note">Reminders are checked while Lexicon Loop is open. Background delivery while the app is closed requires a push server.</p>
+                <p className="stats-note">Push reminders can arrive while the app is closed. On iPhone or iPad, add Lexicon Loop to the Home Screen first.</p>
                 <div className="setting-row"><div className="setting-copy"><strong>Dark mode</strong><span>Use a lower-light palette.</span></div><button className={`toggle ${darkMode ? "on" : ""}`} onClick={() => setDarkMode((value) => !value)} aria-label="Toggle dark mode"><i /></button></div>
                 <div className="setting-row"><div className="setting-copy"><strong>Sync status</strong><span>{syncStatus || (cloudMode ? "Connected to Supabase" : "Local demo mode")}</span></div><span className="state-tag state-review">{cloudMode ? "Cloud" : "Local"}</span></div>
                 <div className="setting-row"><div className="setting-copy"><strong>Keyboard shortcuts</strong><span>Reveal with Space, rate with 1-4.</span></div><Keyboard size={18} color="var(--muted)" /></div>

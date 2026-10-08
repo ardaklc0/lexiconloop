@@ -1,0 +1,4 @@
+project_id = "lexicon-loop"
+
+[functions.send-daily-reminders]
+verify_jwt = false
