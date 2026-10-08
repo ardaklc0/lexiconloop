@@ -183,6 +183,8 @@ export default function FlashcardApp() {
     const [cards, setCards] = useState<WordRecord[]>([]);
     const [folders, setFolders] = useState<Folder[]>([]);
     const [logs, setLogs] = useState<ReviewLog[]>([]);
+    const [isInitialDataLoading, setIsInitialDataLoading] = useState(true);
+    const [initialDataError, setInitialDataError] = useState("");
     const [cloudMode, setCloudMode] = useState(true);
     const [syncStatus, setSyncStatus] = useState("");
     const [isFlipped, setIsFlipped] = useState(false);
@@ -361,24 +363,28 @@ export default function FlashcardApp() {
         let cancelled = false;
 
         async function hydrate() {
-            const supabase = createSupabaseBrowserClient();
-            supabaseRef.current = supabase;
-
-            if (!supabase) {
-                window.location.assign("/auth?error=missing-config");
-                return;
-            }
-
-            setCloudMode(true);
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) {
-                window.location.assign("/auth");
-                return;
-            }
-
-            userIdRef.current = user.id;
-            setSyncStatus("Syncing...");
+            let redirecting = false;
             try {
+                const supabase = createSupabaseBrowserClient();
+                supabaseRef.current = supabase;
+
+                if (!supabase) {
+                    redirecting = true;
+                    window.location.assign("/auth?error=missing-config");
+                    return;
+                }
+
+                setCloudMode(true);
+                const { data: { user }, error: authError } = await supabase.auth.getUser();
+                if (authError) throw authError;
+                if (!user) {
+                    redirecting = true;
+                    window.location.assign("/auth");
+                    return;
+                }
+
+                userIdRef.current = user.id;
+                setSyncStatus("Syncing...");
                 const remoteWorkspaces = await loadWorkspaces(supabase, user.id);
                 const firstWorkspace = remoteWorkspaces[0];
                 if (!firstWorkspace) throw new Error("No workspace found for this account.");
@@ -390,10 +396,17 @@ export default function FlashcardApp() {
                     setCards(remoteData.cards);
                     setFolders(remoteData.folders);
                     setLogs(remoteData.logs);
+                    setInitialDataError("");
                     setSyncStatus("Synced");
                 }
             } catch (error) {
-                if (!cancelled) setSyncStatus(error instanceof Error ? error.message : "Could not sync data.");
+                if (!cancelled) {
+                    const message = error instanceof Error ? error.message : "Could not sync data.";
+                    setInitialDataError(message);
+                    setSyncStatus(message);
+                }
+            } finally {
+                if (!cancelled && !redirecting) setIsInitialDataLoading(false);
             }
         }
 
@@ -527,7 +540,7 @@ export default function FlashcardApp() {
         const cloud = getCloudContext();
         if (!cloud) return;
         setSyncStatus("Saving review...");
-        void saveReview(cloud.client, cloud.userId, cloud.workspaceId, currentCard, rating, next)
+        void saveReview(cloud.client, cloud.workspaceId, currentCard, rating, next)
             .then(() => setSyncStatus("Synced"))
             .catch((error: unknown) => {
                 setCards((previous) => previous.map((card) => card.id === currentCard.id ? currentCard : card));
@@ -1213,12 +1226,12 @@ export default function FlashcardApp() {
             <div className="dashboard-grid">
                 <section className="review-stage" aria-label="Review session">
                     <div className="stage-head">
-                        <div className="stage-progress"><span>{dueCount} due · {reviewCards.length} total</span><div className="progress-track"><div className="progress-fill" style={{ width: `${Math.max(7, Math.min(100, ((reviewCards.length - dueCount) / Math.max(reviewCards.length, 1)) * 100))}%` }} /></div></div><button className="ghost-button quiz-launch-button" onClick={() => setShowQuiz(true)} disabled={!quizCards.length}><ListChecks size={14} /> Quiz</button>
+                        <div className="stage-progress"><span>{isInitialDataLoading ? "Loading vocabulary..." : initialDataError ? "Could not load vocabulary" : `${dueCount} due · ${reviewCards.length} total`}</span><div className="progress-track"><div className="progress-fill" style={{ width: `${Math.max(7, Math.min(100, ((reviewCards.length - dueCount) / Math.max(reviewCards.length, 1)) * 100))}%` }} /></div></div><button className="ghost-button quiz-launch-button" onClick={() => setShowQuiz(true)} disabled={!quizCards.length}><ListChecks size={14} /> Quiz</button>
                         <div className="review-controls">
                             <button className={`ghost-button filter-toggle ${reviewFiltersOpen ? "active" : ""}`} onClick={() => setReviewFiltersOpen((value) => !value)}><Settings2 size={14} /> Filters</button>
                         </div>
                     </div>
-                    {renderDailyGoalProgress()}
+                    {!isInitialDataLoading && !initialDataError && renderDailyGoalProgress()}
                     {reviewFiltersOpen && <div className="filter-panel review-filter-panel">
                         <div className="filter-panel-head"><strong>Review set</strong><button type="button" className="text-button" onClick={clearReviewFilters}>Clear</button></div>
                         <div className="filter-grid">
@@ -1230,7 +1243,7 @@ export default function FlashcardApp() {
                             <label>Sort<select value={reviewSort} onChange={(event) => setReviewSort(event.target.value as ReviewSort)}><option value="oldest-due">Oldest due</option><option value="most-errors">Most errors</option><option value="random">Random</option></select></label>
                         </div>
                     </div>}
-                    {currentCard ? <>
+                    {isInitialDataLoading ? <div className="empty-stage" role="status"><div><Clock3 size={30} /><h2>Loading your vocabulary...</h2><p>Your review queue is on its way.</p></div></div> : initialDataError ? <div className="empty-stage" role="alert"><div><X size={30} /><h2>Could not load your vocabulary.</h2><p>{initialDataError}</p><button className="primary-button" style={{ marginTop: 22 }} onClick={() => window.location.reload()}>Try again</button></div></div> : cards.length === 0 ? <div className="empty-stage"><div><BookOpenCheck size={30} /><h2>Your vocabulary starts here.</h2><p>Add your first word to start a review queue.</p><button className="primary-button" style={{ marginTop: 22 }} onClick={openAddModal}>Add your first word <ArrowRight size={14} /></button></div></div> : currentCard ? <>
                         <div className="flashcard-wrap" onTouchStart={(event) => { const touch = event.changedTouches[0]; touchStart.current = touch ? { x: touch.clientX, y: touch.clientY } : null; }} onTouchEnd={(event) => { const touch = event.changedTouches[0]; const start = touchStart.current; touchStart.current = null; if (!start || !touch || !isFlipped) return; const deltaX = touch.clientX - start.x; const deltaY = touch.clientY - start.y; if (Math.abs(deltaX) > 65 && Math.abs(deltaX) > Math.abs(deltaY) * 1.25) handleReview(deltaX > 0 ? "good" : "forgot"); }} onTouchCancel={() => { touchStart.current = null; }}>
                             <div className="flashcard-shell"><div className={`flashcard ${isFlipped ? "flipped" : ""}`} onClick={() => setIsFlipped((value) => !value)} role="button" tabIndex={0} aria-label={isFlipped ? "Hide answer" : "Reveal answer"} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") setIsFlipped((value) => !value); }}>
                                 <div className="card-face card-front"><div className="card-topline"><span>{currentCard.sourceLanguage}</span></div><div className="card-word-row"><div className={`card-word ${currentCard.word.length > 16 ? "card-word-long" : ""}`}>{currentCard.word}</div></div>{currentCard.exampleSentence && <div className="card-example"><span>Example</span>{currentCard.exampleSentence}</div>}<div className="card-hint"><Eye size={14} /> Tap to reveal</div></div>

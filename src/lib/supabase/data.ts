@@ -164,42 +164,27 @@ export async function insertWord(
 
 export async function saveReview(
     client: SupabaseClient,
-    userId: string,
     workspaceId: string,
     card: WordRecord,
     rating: ReviewRating,
     next: Pick<WordRecord, "state" | "stability" | "difficulty" | "dueAt" | "lastReviewedAt" | "reps" | "lapses">,
 ) {
-    const [progressResponse, logResponse] = await Promise.all([
-        client.from("word_progress").upsert({
-            user_id: userId,
-            workspace_id: workspaceId,
-            word_id: card.id,
-            state: next.state,
-            stability: next.stability,
-            difficulty: next.difficulty,
-            due_at: next.dueAt,
-            last_review_at: next.lastReviewedAt,
-            reps: next.reps,
-            lapses: next.lapses,
-            updated_at: new Date().toISOString(),
-        }, { onConflict: "word_id" }),
-        client.from("review_logs").insert({
-            user_id: userId,
-            workspace_id: workspaceId,
-            word_id: card.id,
-            rating,
-            reviewed_at: next.lastReviewedAt,
-            previous_state: card.state,
-            new_state: next.state,
-            previous_due_at: card.dueAt,
-            new_due_at: next.dueAt,
-        }),
-    ]);
+    const { error } = await client.rpc("save_review", {
+        p_workspace_id: workspaceId,
+        p_word_id: card.id,
+        p_rating: rating,
+        p_new_state: next.state,
+        p_stability: next.stability,
+        p_difficulty: next.difficulty,
+        p_due_at: next.dueAt,
+        p_reviewed_at: next.lastReviewedAt,
+        p_reps: next.reps,
+        p_lapses: next.lapses,
+        p_previous_state: card.state,
+        p_previous_due_at: card.dueAt,
+    });
 
-    if (progressResponse.error || logResponse.error) {
-        throw new Error(progressResponse.error?.message ?? logResponse.error?.message ?? "Review could not be saved.");
-    }
+    if (error) throw new Error(error.message);
 }
 
 export async function insertFolder(client: SupabaseClient, userId: string, workspaceId: string, input: Pick<Folder, "name" | "description" | "color">) {

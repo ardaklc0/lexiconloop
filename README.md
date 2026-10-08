@@ -17,8 +17,8 @@ Open `http://localhost:3000`. The app requires Supabase configuration and an aut
 
 1. Create a Supabase project.
 2. Copy `.env.example` to `.env.local` and add the project URL and anon key.
-3. Run `supabase/migrations/001_initial_schema.sql`, then `supabase/migrations/002_workspaces.sql`, `supabase/migrations/003_repair_word_folder_workspace.sql`, and `supabase/migrations/004_add_cefr_level.sql` in the Supabase SQL editor. If the earlier migrations are already applied, run the missing repair and CEFR migrations.
-4. The schema enables RLS for profiles, folders, words, progress, and review logs. Foreign keys cascade progress and logs when a word is deleted, while deleting a folder leaves its words unsorted.
+3. Run `supabase/migrations/001_initial_schema.sql` through `supabase/migrations/006_atomic_review_save.sql` in numeric order in the Supabase SQL editor. If earlier migrations are already applied, run only the missing migrations, including `005_review_ratings.sql` and `006_atomic_review_save.sql` when they have not been applied.
+4. The schema enables RLS for profiles, folders, words, progress, and review logs. Foreign keys cascade progress and logs when a word is deleted, while deleting a folder leaves its words unsorted. Review progress and its history log are saved together by the `save_review` database function.
 
 Create users in Supabase Auth with a password. Any user with an existing Supabase account can sign in; the app uses direct `signInWithPassword` and does not provide a register flow.
 
