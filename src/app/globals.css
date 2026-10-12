@@ -481,8 +481,8 @@ select.workspace-picker {
 
 .dashboard-grid {
     display: grid;
-    grid-template-columns: minmax(0, 1.3fr) minmax(280px, .7fr);
-    gap: 18px;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
     align-items: start;
 }
 
@@ -531,8 +531,8 @@ select.workspace-picker {
 
 .daily-goal-progress {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 16px;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
     position: relative;
     z-index: 1;
     margin: 14px 0 18px;
@@ -736,8 +736,19 @@ select.workspace-picker {
 
 .stage-progress {
     display: flex;
-    align-items: center;
-    gap: 10px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 3px;
+}
+
+.stage-progress strong {
+    color: #fff;
+    font-size: 13px;
+}
+
+.stage-progress span {
+    color: #aec2ba;
+    font-size: 11px;
 }
 
 .progress-track {
@@ -1145,6 +1156,15 @@ select.workspace-picker {
     text-align: center;
     color: #d2e0da;
     padding: 30px;
+}
+
+.review-stage .empty-stage {
+    min-height: 280px;
+    padding: 24px 12px;
+}
+
+.review-stage:has(.empty-stage) {
+    min-height: 0;
 }
 
 .empty-stage h2 {
@@ -2432,10 +2452,6 @@ select.workspace-picker {
         grid-template-columns: 1fr;
     }
 
-    .side-stack {
-        grid-template-columns: 1fr 1fr;
-    }
-
     .review-stage {
         min-height: 520px;
     }
@@ -2446,10 +2462,10 @@ select.workspace-picker {
     }
 
     .review-controls {
-        order: 3;
-        width: 100%;
-        margin-left: 0;
-        justify-content: space-between;
+        order: 0;
+        width: auto;
+        margin-left: auto;
+        justify-content: flex-end;
     }
 
     .review-controls select {
@@ -2566,11 +2582,6 @@ select.workspace-picker {
         min-height: 0;
     }
 
-    .daily-goal-progress {
-        grid-template-columns: 1fr;
-        gap: 14px;
-    }
-
     .settings-stack {
         gap: 16px;
     }
@@ -2597,10 +2608,6 @@ select.workspace-picker {
     .card-word-long {
         font-size: clamp(21px, 7vw, 30px);
         line-height: 1.05;
-    }
-
-    .side-stack {
-        grid-template-columns: 1fr;
     }
 
     .review-rating-actions {

@@ -13,7 +13,6 @@ import {
     Clock3,
     Download,
     Eye,
-    Flame,
     FolderOpen,
     Keyboard,
     Languages,
@@ -1298,7 +1297,7 @@ export default function FlashcardApp() {
             <div className="dashboard-grid">
                 <section className="review-stage" aria-label="Review session">
                     <div className="stage-head">
-                        <div className="stage-progress"><span>{isInitialDataLoading ? "Loading vocabulary..." : initialDataError ? "Could not load vocabulary" : `${dueCount} due · ${reviewCards.length} total`}</span><div className="progress-track"><div className="progress-fill" style={{ width: `${Math.max(7, Math.min(100, ((reviewCards.length - dueCount) / Math.max(reviewCards.length, 1)) * 100))}%` }} /></div></div><button className="ghost-button quiz-launch-button" onClick={() => setShowQuiz(true)} disabled={!quizCards.length}><ListChecks size={14} /> Quiz</button>
+                        <div className="stage-progress"><strong>{isInitialDataLoading ? "Loading vocabulary..." : initialDataError ? "Could not load vocabulary" : `${dueCount} cards due`}</strong>{!isInitialDataLoading && !initialDataError && <span>{reviewCards.length} in your library</span>}</div><button className="ghost-button quiz-launch-button" onClick={() => setShowQuiz(true)} disabled={!quizCards.length}><ListChecks size={14} /> Quiz</button>
                         <div className="review-controls">
                             {reviewSession?.entries.length ? <button type="button" className="ghost-button filter-toggle" onClick={() => setShowReviewSummary(true)}><Check size={14} /> Finish</button> : null}
                             <button className={`ghost-button filter-toggle ${reviewFiltersOpen ? "active" : ""}`} onClick={() => setReviewFiltersOpen((value) => !value)}><Settings2 size={14} /> Filters</button>
@@ -1327,7 +1326,6 @@ export default function FlashcardApp() {
                         <div className="stage-footnote"><Keyboard size={12} style={{ verticalAlign: "-2px", marginRight: 4 }} /> Space to reveal · 1 Forgot · 2 Hard · 3 Good · 4 Easy</div>
                     </> : <div className="empty-stage"><div><Check size={34} /><h2>All clear for now.</h2><p>Your next cards will appear here when they are due. A quiet win.</p><button className="primary-button" style={{ marginTop: 22 }} onClick={() => setActiveView("words")}>Browse words <ArrowRight size={14} /></button></div></div>}
                 </section>
-                <div className="side-stack"><section className="surface-panel"><div className="panel-heading"><h2>Today</h2><button onClick={() => setActiveView("statistics")}>See stats</button></div><div className="stat-row"><span className="stat-label"><span className="dot-icon dot-sage" />Reviews</span><strong className="stat-value">{todayLogs.length}</strong></div><div className="stat-row"><span className="stat-label"><span className="dot-icon dot-peach" />Due now</span><strong className="stat-value">{dueCount}</strong></div><div className="stat-row"><span className="stat-label"><span className="dot-icon dot-yellow" />Learned</span><strong className="stat-value">{learnedCount}</strong></div></section><section className="surface-panel streak-panel"><div className="streak-icon"><Flame size={21} /></div><div><strong>{calculateStreak(logs)} days</strong><span>Current learning streak</span></div></section><section className="surface-panel"><div className="panel-heading"><h2>Review rhythm</h2><Clock3 size={16} color="var(--muted)" /></div><p style={{ margin: 0, color: "var(--muted)", fontSize: 12, lineHeight: 1.6 }}>Two short sessions a day beat one heroic session a week. Your next card is waiting.</p></section></div>
             </div>
         );
     }
@@ -1480,10 +1478,8 @@ export default function FlashcardApp() {
     function renderDailyGoalProgress() {
         const progress = Math.min((todayLogs.length / dailyGoal) * 100, 100);
         const streak = calculateStreak(logs);
-        const streakDay = streak ? ((streak - 1) % 7) + 1 : 0;
         return <div className="daily-goal-progress">
-            <div className="daily-goal-metric"><div className="daily-goal-copy"><strong>Today&apos;s goal</strong><span>{todayLogs.length} / {dailyGoal} reviews{progress >= 100 ? " · Complete" : ""}</span></div><div className="goal-progress-track" role="progressbar" aria-label="Daily review goal" aria-valuemin={0} aria-valuemax={dailyGoal} aria-valuenow={Math.min(todayLogs.length, dailyGoal)}><span style={{ width: `${progress}%` }} /></div></div>
-            <div className="daily-goal-metric streak-milestone-progress"><div className="daily-goal-copy"><strong>Learning streak</strong><span>{streakDay} / 7 day milestone</span></div><div className="goal-progress-track" role="progressbar" aria-label="Seven-day streak milestone" aria-valuemin={0} aria-valuemax={7} aria-valuenow={streakDay}><span style={{ width: `${(streakDay / 7) * 100}%` }} /></div></div>
+            <div className="daily-goal-metric"><div className="daily-goal-copy"><strong>Today&apos;s progress</strong><span>{todayLogs.length} / {dailyGoal} reviews{progress >= 100 ? " · Goal complete" : ""} · {streak}-day streak</span></div><div className="goal-progress-track" role="progressbar" aria-label="Daily review goal" aria-valuemin={0} aria-valuemax={dailyGoal} aria-valuenow={Math.min(todayLogs.length, dailyGoal)}><span style={{ width: `${progress}%` }} /></div></div>
         </div>;
     }
 
