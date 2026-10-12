@@ -2493,7 +2493,7 @@ select.workspace-picker {
 
     :root {
         --mobile-safe-area-bottom: min(env(safe-area-inset-bottom, 0px), 34px);
-        --mobile-nav-height: calc(64px + var(--mobile-safe-area-bottom));
+        --mobile-nav-height: calc(56px + var(--mobile-safe-area-bottom));
     }
 
     /* iOS Safari zooms focused controls below 16px. Keep focus without viewport zoom. */
@@ -2514,6 +2514,7 @@ select.workspace-picker {
         flex-direction: column;
         height: calc(100dvh - var(--mobile-nav-height));
         min-height: calc(100dvh - var(--mobile-nav-height));
+        min-width: 0;
     }
 
     body {
@@ -2526,7 +2527,7 @@ select.workspace-picker {
 
     .topbar-mobile {
         display: flex;
-        height: calc(64px + env(safe-area-inset-top));
+        height: calc(56px + env(safe-area-inset-top));
         border-bottom: 1px solid var(--line);
         align-items: center;
         justify-content: space-between;
@@ -2548,7 +2549,7 @@ select.workspace-picker {
         display: flex;
         position: fixed;
         z-index: 30;
-        top: calc(64px + env(safe-area-inset-top));
+        top: calc(56px + env(safe-area-inset-top));
         bottom: 0;
         left: 0;
         width: min(280px, 86vw);
@@ -2564,7 +2565,7 @@ select.workspace-picker {
         content: "";
         position: fixed;
         z-index: 20;
-        inset: calc(64px + env(safe-area-inset-top)) 0 0;
+        inset: calc(56px + env(safe-area-inset-top)) 0 0;
         background: rgba(25, 51, 46, .25);
     }
 
@@ -2580,6 +2581,9 @@ select.workspace-picker {
         padding: 24px 16px calc(var(--mobile-nav-height) + 20px);
         width: 100%;
         flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        overscroll-behavior-y: contain;
     }
 
     .page-wrap:has(.dashboard-grid) {
@@ -2592,6 +2596,10 @@ select.workspace-picker {
         flex: 1;
         min-height: 0;
         align-items: stretch;
+    }
+
+    .dashboard-grid:has(.flashcard-wrap) {
+        flex: 0 0 auto;
     }
 
     .page-header {
@@ -2784,8 +2792,8 @@ select.workspace-picker {
     }
 
     .mobile-nav button svg {
-        width: 24px;
-        height: 24px;
+        width: 22px;
+        height: 22px;
     }
 
     .mobile-nav button.active {
