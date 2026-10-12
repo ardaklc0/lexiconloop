@@ -2502,6 +2502,10 @@ select.workspace-picker {
         overflow: hidden;
     }
 
+    html {
+        background: var(--surface);
+    }
+
     /* iOS Safari zooms focused controls below 16px. Keep focus without viewport zoom. */
     input,
     textarea,
@@ -2774,7 +2778,7 @@ select.workspace-picker {
         right: 0;
         height: var(--mobile-nav-height);
         min-height: var(--mobile-nav-height);
-        background: rgba(255, 253, 248, .96);
+        background: var(--surface);
         border-top: 1px solid var(--line);
         display: grid;
         grid-template-columns: repeat(6, minmax(0, 1fr));
