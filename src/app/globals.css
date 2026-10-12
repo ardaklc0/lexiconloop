@@ -2493,7 +2493,8 @@ select.workspace-picker {
 
     :root {
         --mobile-safe-area-bottom: min(env(safe-area-inset-bottom, 0px), 48px);
-        --mobile-nav-height: calc(48px + var(--mobile-safe-area-bottom));
+        --mobile-nav-content-height: 48px;
+        --mobile-nav-height: calc(var(--mobile-nav-content-height) + var(--mobile-safe-area-bottom));
     }
 
     html,
@@ -2519,7 +2520,7 @@ select.workspace-picker {
     .main-area {
         display: flex;
         flex-direction: column;
-        height: calc(100% - var(--mobile-nav-height));
+        height: calc(100% - var(--mobile-nav-content-height));
         min-height: 0;
         min-width: 0;
     }
@@ -2769,7 +2770,7 @@ select.workspace-picker {
     .mobile-nav {
         position: fixed;
         z-index: 10;
-        bottom: 0;
+        bottom: calc(0px - var(--mobile-safe-area-bottom));
         left: 0;
         right: 0;
         height: var(--mobile-nav-height);
