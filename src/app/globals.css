@@ -2524,10 +2524,6 @@ select.workspace-picker {
         min-width: 0;
     }
 
-    body {
-        background: var(--surface);
-    }
-
     .sidebar {
         display: none;
     }
