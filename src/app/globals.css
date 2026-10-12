@@ -2493,7 +2493,7 @@ select.workspace-picker {
 
     :root {
         --mobile-safe-area-bottom: min(env(safe-area-inset-bottom, 0px), 34px);
-        --mobile-nav-height: calc(56px + var(--mobile-safe-area-bottom));
+        --mobile-nav-height: calc(48px + var(--mobile-safe-area-bottom));
     }
 
     /* iOS Safari zooms focused controls below 16px. Keep focus without viewport zoom. */
@@ -2785,15 +2785,15 @@ select.workspace-picker {
         display: grid;
         justify-items: center;
         align-content: center;
-        gap: 4px;
+        gap: 2px;
         min-height: 0;
         padding: 0;
         line-height: 1.2;
     }
 
     .mobile-nav button svg {
-        width: 22px;
-        height: 22px;
+        width: 20px;
+        height: 20px;
     }
 
     .mobile-nav button.active {
