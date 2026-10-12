@@ -2498,7 +2498,7 @@ select.workspace-picker {
 
     html,
     body {
-        height: calc(100dvh + var(--mobile-safe-area-bottom));
+        height: 100dvh;
         overflow: hidden;
     }
 
@@ -2511,7 +2511,7 @@ select.workspace-picker {
 
     .app-shell {
         display: block;
-        height: 100%;
+        height: 100dvh;
         min-height: 0;
         background: var(--paper);
     }
@@ -2519,7 +2519,7 @@ select.workspace-picker {
     .main-area {
         display: flex;
         flex-direction: column;
-        height: calc(100% - var(--mobile-nav-height));
+        height: calc(100% - var(--mobile-nav-height) - 4px);
         min-height: 0;
         min-width: 0;
     }
@@ -2557,7 +2557,7 @@ select.workspace-picker {
         position: fixed;
         z-index: 30;
         top: calc(56px + env(safe-area-inset-top));
-        bottom: calc(0px - var(--mobile-safe-area-bottom));
+        bottom: 0;
         left: 0;
         width: min(280px, 86vw);
         min-height: auto;
@@ -2574,7 +2574,7 @@ select.workspace-picker {
         z-index: 20;
         top: calc(56px + env(safe-area-inset-top));
         right: 0;
-        bottom: calc(0px - var(--mobile-safe-area-bottom));
+        bottom: 0;
         left: 0;
         background: rgba(25, 51, 46, .25);
     }
@@ -2773,7 +2773,7 @@ select.workspace-picker {
     .mobile-nav {
         position: fixed;
         z-index: 10;
-        bottom: calc(0px - var(--mobile-safe-area-bottom));
+        bottom: 4px;
         left: 0;
         right: 0;
         height: var(--mobile-nav-height);
