@@ -2773,7 +2773,7 @@ select.workspace-picker {
     .mobile-nav {
         position: fixed;
         z-index: 10;
-        bottom: calc(0px - var(--mobile-safe-area-bottom));
+        bottom: 0;
         left: 0;
         right: 0;
         height: var(--mobile-nav-height);
