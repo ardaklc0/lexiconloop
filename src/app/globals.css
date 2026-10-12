@@ -2519,7 +2519,7 @@ select.workspace-picker {
     .main-area {
         display: flex;
         flex-direction: column;
-        height: calc(100% - var(--mobile-nav-height) - 4px);
+        height: calc(100% - var(--mobile-nav-height));
         min-height: 0;
         min-width: 0;
     }
@@ -2769,17 +2769,17 @@ select.workspace-picker {
     .mobile-nav {
         position: fixed;
         z-index: 10;
-        bottom: var(--mobile-safe-area-bottom);
+        bottom: 0;
         left: 0;
         right: 0;
-        height: calc(var(--mobile-nav-height) - var(--mobile-safe-area-bottom));
-        min-height: calc(var(--mobile-nav-height) - var(--mobile-safe-area-bottom));
+        height: var(--mobile-nav-height);
+        min-height: var(--mobile-nav-height);
         background: var(--surface);
         border-top: 1px solid var(--line);
         display: grid;
         grid-template-columns: repeat(6, minmax(0, 1fr));
         grid-template-rows: minmax(0, 1fr);
-        padding: 0 6px;
+        padding: 0 6px var(--mobile-safe-area-bottom);
         box-sizing: border-box;
     }
 
