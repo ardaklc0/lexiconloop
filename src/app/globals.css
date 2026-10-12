@@ -1215,6 +1215,26 @@ select.workspace-picker {
     margin-bottom: 20px;
 }
 
+.word-sort-control {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    color: var(--muted);
+    font-size: 11px;
+    white-space: nowrap;
+}
+
+.word-sort-control select {
+    min-width: 145px;
+    height: 40px;
+    padding: 0 10px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--ink);
+    font: inherit;
+}
+
 .search-box {
     display: flex;
     align-items: center;
@@ -2620,6 +2640,14 @@ select.workspace-picker {
         width: 100%;
         max-width: none;
         min-width: 0;
+    }
+
+    .word-sort-control {
+        justify-content: space-between;
+    }
+
+    .word-sort-control select {
+        flex: 1;
     }
 
     .word-row {
