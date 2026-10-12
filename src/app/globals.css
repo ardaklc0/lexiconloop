@@ -2492,7 +2492,7 @@ select.workspace-picker {
 @media (max-width: 720px) {
 
     :root {
-        --mobile-safe-area-bottom: min(env(safe-area-inset-bottom, 0px), 48px);
+        --mobile-safe-area-bottom: env(safe-area-inset-bottom, 0px);
         --mobile-nav-content-height: 48px;
         --mobile-nav-height: calc(var(--mobile-nav-content-height) + var(--mobile-safe-area-bottom));
     }
@@ -2511,7 +2511,8 @@ select.workspace-picker {
     }
 
     .app-shell {
-        display: block;
+        display: flex;
+        flex-direction: column;
         height: 100dvh;
         min-height: 0;
         background: var(--paper);
@@ -2520,7 +2521,7 @@ select.workspace-picker {
     .main-area {
         display: flex;
         flex-direction: column;
-        height: calc(100% - var(--mobile-nav-content-height));
+        flex: 1 1 auto;
         min-height: 0;
         min-width: 0;
     }
@@ -2531,6 +2532,7 @@ select.workspace-picker {
 
     .topbar-mobile {
         display: flex;
+        flex: 0 0 auto;
         height: calc(56px + env(safe-area-inset-top));
         border-bottom: 1px solid var(--line);
         align-items: center;
@@ -2585,7 +2587,7 @@ select.workspace-picker {
     }
 
     .page-wrap {
-        padding: 24px 16px calc(var(--mobile-nav-height) + 20px);
+        padding: 24px 16px 20px;
         width: 100%;
         flex: 1;
         min-height: 0;
@@ -2768,13 +2770,12 @@ select.workspace-picker {
     }
 
     .mobile-nav {
-        position: fixed;
+        position: relative;
         z-index: 10;
-        bottom: calc(0px - var(--mobile-safe-area-bottom));
-        left: 0;
-        right: 0;
+        flex: 0 0 var(--mobile-nav-height);
         height: var(--mobile-nav-height);
         min-height: var(--mobile-nav-height);
+        width: 100%;
         background: var(--surface);
         border-top: 1px solid var(--line);
         display: grid;
