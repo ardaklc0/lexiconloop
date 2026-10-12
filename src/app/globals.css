@@ -2511,6 +2511,7 @@ select.workspace-picker {
     .main-area {
         display: flex;
         flex-direction: column;
+        height: calc(100dvh - var(--mobile-nav-height));
         min-height: calc(100dvh - var(--mobile-nav-height));
     }
 
@@ -2589,6 +2590,7 @@ select.workspace-picker {
     .dashboard-grid {
         flex: 1;
         min-height: 0;
+        align-items: stretch;
     }
 
     .page-header {
@@ -2611,7 +2613,6 @@ select.workspace-picker {
         margin-inline: -2px;
         padding: 24px 16px 16px;
         min-height: 0;
-        flex: 1;
     }
 
     .daily-goal-progress {
