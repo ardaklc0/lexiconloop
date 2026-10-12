@@ -2508,6 +2508,12 @@ select.workspace-picker {
         background: var(--paper);
     }
 
+    .main-area {
+        display: flex;
+        flex-direction: column;
+        min-height: calc(100dvh - var(--mobile-nav-height));
+    }
+
     body {
         background: var(--surface);
     }
@@ -2570,6 +2576,19 @@ select.workspace-picker {
 
     .page-wrap {
         padding: 24px 16px calc(var(--mobile-nav-height) + 20px);
+        width: 100%;
+        flex: 1;
+    }
+
+    .page-wrap:has(.dashboard-grid) {
+        display: flex;
+        flex-direction: column;
+        padding-bottom: 16px;
+    }
+
+    .dashboard-grid {
+        flex: 1;
+        min-height: 0;
     }
 
     .page-header {
@@ -2592,6 +2611,7 @@ select.workspace-picker {
         margin-inline: -2px;
         padding: 24px 16px 16px;
         min-height: 0;
+        flex: 1;
     }
 
     .daily-goal-progress {
