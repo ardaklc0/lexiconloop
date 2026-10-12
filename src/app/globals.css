@@ -2502,14 +2502,6 @@ select.workspace-picker {
         overflow: hidden;
     }
 
-    html {
-        background: var(--surface);
-    }
-
-    body {
-        background: var(--surface);
-    }
-
     /* iOS Safari zooms focused controls below 16px. Keep focus without viewport zoom. */
     input,
     textarea,
@@ -2777,17 +2769,17 @@ select.workspace-picker {
     .mobile-nav {
         position: fixed;
         z-index: 10;
-        bottom: 0;
+        bottom: var(--mobile-safe-area-bottom);
         left: 0;
         right: 0;
-        height: var(--mobile-nav-height);
-        min-height: var(--mobile-nav-height);
+        height: calc(var(--mobile-nav-height) - var(--mobile-safe-area-bottom));
+        min-height: calc(var(--mobile-nav-height) - var(--mobile-safe-area-bottom));
         background: var(--surface);
         border-top: 1px solid var(--line);
         display: grid;
         grid-template-columns: repeat(6, minmax(0, 1fr));
         grid-template-rows: minmax(0, 1fr);
-        padding: 0 6px var(--mobile-safe-area-bottom);
+        padding: 0 6px;
         box-sizing: border-box;
     }
 
