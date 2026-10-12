@@ -2740,7 +2740,7 @@ select.workspace-picker {
         background: rgba(255, 253, 248, .96);
         border-top: 1px solid var(--line);
         display: grid;
-        grid-template-columns: repeat(6, 1fr);
+        grid-template-columns: repeat(6, minmax(0, 1fr));
         padding: 7px 6px env(safe-area-inset-bottom);
     }
 
@@ -2748,11 +2748,17 @@ select.workspace-picker {
         border: 0;
         background: transparent;
         color: var(--muted);
-        font-size: 9px;
+        font-size: 10px;
         display: grid;
         justify-items: center;
-        gap: 4px;
-        padding: 5px 0;
+        align-content: center;
+        gap: 5px;
+        padding: 4px 0;
+    }
+
+    .mobile-nav button svg {
+        width: 24px;
+        height: 24px;
     }
 
     .mobile-nav button.active {
