@@ -2506,6 +2506,10 @@ select.workspace-picker {
         background: var(--surface);
     }
 
+    body {
+        background: var(--surface);
+    }
+
     /* iOS Safari zooms focused controls below 16px. Keep focus without viewport zoom. */
     input,
     textarea,
