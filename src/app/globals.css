@@ -2492,7 +2492,7 @@ select.workspace-picker {
 @media (max-width: 720px) {
 
     :root {
-        --mobile-safe-area-bottom: env(safe-area-inset-bottom, 0px);
+        --mobile-safe-area-bottom: min(env(safe-area-inset-bottom, 0px), 48px);
         --mobile-nav-height: calc(48px + var(--mobile-safe-area-bottom));
     }
 
