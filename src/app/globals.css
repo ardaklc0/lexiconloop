@@ -2496,6 +2496,12 @@ select.workspace-picker {
         --mobile-nav-height: calc(48px + var(--mobile-safe-area-bottom));
     }
 
+    html,
+    body {
+        height: 100%;
+        overflow: hidden;
+    }
+
     /* iOS Safari zooms focused controls below 16px. Keep focus without viewport zoom. */
     input,
     textarea,
@@ -2505,15 +2511,16 @@ select.workspace-picker {
 
     .app-shell {
         display: block;
-        min-height: 100dvh;
+        height: 100dvh;
+        min-height: 0;
         background: var(--paper);
     }
 
     .main-area {
         display: flex;
         flex-direction: column;
-        height: calc(100dvh - var(--mobile-nav-height));
-        min-height: calc(100dvh - var(--mobile-nav-height));
+        height: calc(100% - var(--mobile-nav-height));
+        min-height: 0;
         min-width: 0;
     }
 
