@@ -2715,6 +2715,17 @@ select.workspace-picker {
         padding: 7px 6px env(safe-area-inset-bottom);
     }
 
+    .mobile-nav::after {
+        content: "";
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        height: max(env(safe-area-inset-bottom), 36px);
+        background: inherit;
+        pointer-events: none;
+    }
+
     .mobile-nav button {
         border: 0;
         background: transparent;
