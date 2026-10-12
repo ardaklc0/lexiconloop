@@ -2587,7 +2587,7 @@ select.workspace-picker {
     }
 
     .page-wrap {
-        padding: 24px 16px 20px;
+        padding: 24px 16px calc(var(--mobile-nav-height) + 20px);
         width: 100%;
         flex: 1;
         min-height: 0;
@@ -2598,7 +2598,7 @@ select.workspace-picker {
     .page-wrap:has(.dashboard-grid) {
         display: flex;
         flex-direction: column;
-        padding-bottom: 16px;
+        padding-bottom: calc(var(--mobile-nav-height) + 16px);
     }
 
     .dashboard-grid {
@@ -2770,9 +2770,11 @@ select.workspace-picker {
     }
 
     .mobile-nav {
-        position: relative;
+        position: fixed;
         z-index: 10;
-        flex: 0 0 var(--mobile-nav-height);
+        right: 0;
+        bottom: 0;
+        left: 0;
         height: var(--mobile-nav-height);
         min-height: var(--mobile-nav-height);
         width: 100%;
@@ -2834,6 +2836,15 @@ select.workspace-picker {
 
     .etymology-copy {
         grid-template-columns: 1fr;
+    }
+}
+
+/* In iOS Home Screen apps, 100dvh can stop above the bottom safe area. */
+@media (max-width: 720px) and (display-mode: standalone) {
+    html,
+    body,
+    .app-shell {
+        height: 100vh;
     }
 }
 
