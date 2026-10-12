@@ -2492,7 +2492,7 @@ select.workspace-picker {
 @media (max-width: 720px) {
 
     :root {
-        --mobile-nav-height: calc(64px + env(safe-area-inset-bottom));
+        --mobile-nav-height: calc(72px + env(safe-area-inset-bottom));
     }
 
     /* iOS Safari zooms focused controls below 16px. Keep focus without viewport zoom. */
@@ -2737,11 +2737,14 @@ select.workspace-picker {
         left: 0;
         right: 0;
         height: var(--mobile-nav-height);
+        min-height: var(--mobile-nav-height);
         background: rgba(255, 253, 248, .96);
         border-top: 1px solid var(--line);
         display: grid;
         grid-template-columns: repeat(6, minmax(0, 1fr));
-        padding: 7px 6px env(safe-area-inset-bottom);
+        grid-template-rows: minmax(0, 1fr);
+        padding: 0 6px env(safe-area-inset-bottom);
+        box-sizing: border-box;
     }
 
     .mobile-nav button {
@@ -2752,8 +2755,10 @@ select.workspace-picker {
         display: grid;
         justify-items: center;
         align-content: center;
-        gap: 5px;
-        padding: 4px 0;
+        gap: 4px;
+        min-height: 0;
+        padding: 0;
+        line-height: 1.2;
     }
 
     .mobile-nav button svg {
