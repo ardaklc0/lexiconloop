@@ -1297,13 +1297,14 @@ export default function FlashcardApp() {
             <div className="dashboard-grid">
                 <section className="review-stage" aria-label="Review session">
                     <div className="stage-head">
-                        <div className="stage-progress"><strong>{isInitialDataLoading ? "Loading vocabulary..." : initialDataError ? "Could not load vocabulary" : `${dueCount} cards due`}</strong>{!isInitialDataLoading && !initialDataError && <span>{reviewCards.length} in your library</span>}</div><button className="ghost-button quiz-launch-button" onClick={() => setShowQuiz(true)} disabled={!quizCards.length}><ListChecks size={14} /> Quiz</button>
+                        <div className="stage-progress"><strong>{isInitialDataLoading ? "Loading vocabulary..." : initialDataError ? "Could not load vocabulary" : `${dueCount} cards due`}</strong>{!isInitialDataLoading && !initialDataError && <span>{reviewCards.length} in your library</span>}</div>
+                        {!isInitialDataLoading && !initialDataError && !showReviewSummary && renderDailyGoalProgress()}
+                        <button className="ghost-button quiz-launch-button" onClick={() => setShowQuiz(true)} disabled={!quizCards.length}><ListChecks size={14} /> Quiz</button>
                         <div className="review-controls">
                             {reviewSession?.entries.length ? <button type="button" className="ghost-button filter-toggle" onClick={() => setShowReviewSummary(true)}><Check size={14} /> Finish</button> : null}
                             <button className={`ghost-button filter-toggle ${reviewFiltersOpen ? "active" : ""}`} onClick={() => setReviewFiltersOpen((value) => !value)}><Settings2 size={14} /> Filters</button>
                         </div>
                     </div>
-                    {!isInitialDataLoading && !initialDataError && !showReviewSummary && renderDailyGoalProgress()}
                     {reviewFiltersOpen && <div className="filter-panel review-filter-panel">
                         <div className="filter-panel-head"><strong>Review set</strong><button type="button" className="text-button" onClick={clearReviewFilters}>Clear</button></div>
                         <div className="filter-grid">

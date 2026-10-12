@@ -522,36 +522,38 @@ select.workspace-picker {
     position: relative;
     z-index: 1;
     display: flex;
-    justify-content: space-between;
+    justify-content: flex-start;
     align-items: center;
+    flex-wrap: wrap;
     gap: 14px;
     color: #aec2ba;
     font-size: 11px;
 }
 
 .daily-goal-progress {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    gap: 0;
+    display: flex;
+    align-items: center;
+    flex: 1 1 300px;
+    min-width: 0;
+    gap: 10px;
     position: relative;
     z-index: 1;
-    margin: 14px 0 18px;
-    padding: 12px 14px;
-    border: 1px solid rgba(255, 255, 255, .14);
-    border-radius: 8px;
-    background: rgba(255, 255, 255, .06);
+    margin: 0;
+    padding: 0;
 }
 
 .daily-goal-metric {
-    min-width: 0;
+    display: contents;
 }
 
 .daily-goal-copy {
     display: flex;
-    justify-content: space-between;
+    flex: 1;
+    min-width: 0;
+    justify-content: flex-start;
     align-items: baseline;
-    gap: 12px;
-    margin-bottom: 9px;
+    gap: 8px;
+    margin: 0;
 }
 
 .daily-goal-copy strong {
@@ -562,10 +564,11 @@ select.workspace-picker {
 .daily-goal-copy span {
     color: #aec2ba;
     font-size: 11px;
-    text-align: right;
+    white-space: nowrap;
 }
 
 .goal-progress-track {
+    flex: 0 0 76px;
     height: 6px;
     overflow: hidden;
     border-radius: 999px;
@@ -588,7 +591,7 @@ select.workspace-picker {
     display: flex;
     align-items: center;
     gap: 7px;
-    margin-left: auto;
+    margin-left: 0;
 }
 
 .review-controls label {
@@ -736,9 +739,9 @@ select.workspace-picker {
 
 .stage-progress {
     display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 3px;
+    align-items: baseline;
+    white-space: nowrap;
+    gap: 8px;
 }
 
 .stage-progress strong {
@@ -2461,6 +2464,10 @@ select.workspace-picker {
         flex-wrap: wrap;
     }
 
+    .daily-goal-progress {
+        flex-basis: 100%;
+    }
+
     .review-controls {
         order: 0;
         width: auto;
@@ -2498,6 +2505,11 @@ select.workspace-picker {
     .app-shell {
         display: block;
         min-height: 100dvh;
+        background: var(--paper);
+    }
+
+    body {
+        background: var(--surface);
     }
 
     .sidebar {
@@ -2580,6 +2592,23 @@ select.workspace-picker {
         margin-inline: -2px;
         padding: 24px 16px 16px;
         min-height: 0;
+    }
+
+    .daily-goal-progress {
+        flex-wrap: wrap;
+    }
+
+    .daily-goal-copy {
+        flex-basis: 100%;
+        justify-content: space-between;
+    }
+
+    .daily-goal-copy span {
+        white-space: normal;
+    }
+
+    .goal-progress-track {
+        flex-basis: 100%;
     }
 
     .settings-stack {
@@ -2713,17 +2742,6 @@ select.workspace-picker {
         display: grid;
         grid-template-columns: repeat(6, 1fr);
         padding: 7px 6px env(safe-area-inset-bottom);
-    }
-
-    .mobile-nav::after {
-        content: "";
-        position: absolute;
-        top: 100%;
-        left: 0;
-        right: 0;
-        height: max(env(safe-area-inset-bottom), 36px);
-        background: inherit;
-        pointer-events: none;
     }
 
     .mobile-nav button {
@@ -3075,5 +3093,5 @@ select.workspace-picker {
 }
 
 .quiz-launch-button {
-    margin-left: auto;
+    margin-left: 0;
 }
