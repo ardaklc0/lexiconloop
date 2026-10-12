@@ -2492,7 +2492,8 @@ select.workspace-picker {
 @media (max-width: 720px) {
 
     :root {
-        --mobile-nav-height: calc(72px + env(safe-area-inset-bottom));
+        --mobile-safe-area-bottom: min(env(safe-area-inset-bottom, 0px), 34px);
+        --mobile-nav-height: calc(64px + var(--mobile-safe-area-bottom));
     }
 
     /* iOS Safari zooms focused controls below 16px. Keep focus without viewport zoom. */
@@ -2764,7 +2765,7 @@ select.workspace-picker {
         display: grid;
         grid-template-columns: repeat(6, minmax(0, 1fr));
         grid-template-rows: minmax(0, 1fr);
-        padding: 0 6px env(safe-area-inset-bottom);
+        padding: 0 6px var(--mobile-safe-area-bottom);
         box-sizing: border-box;
     }
 
