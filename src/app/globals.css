@@ -2602,8 +2602,8 @@ select.workspace-picker {
     }
 
     .dashboard-grid {
-        flex: 1;
-        min-height: 0;
+        flex: 0 0 auto;
+        min-height: auto;
         align-items: stretch;
     }
 
@@ -2631,6 +2631,35 @@ select.workspace-picker {
         margin-inline: -2px;
         padding: 24px 16px 16px;
         min-height: 0;
+    }
+
+    .stage-head {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        align-items: center;
+        gap: 12px 8px;
+    }
+
+    .stage-progress,
+    .daily-goal-progress {
+        grid-column: 1 / -1;
+    }
+
+    .quiz-launch-button {
+        grid-column: 1;
+        justify-self: start;
+    }
+
+    .review-controls {
+        grid-column: 2;
+        justify-content: flex-end;
+        flex-wrap: nowrap;
+    }
+
+    .review-controls .filter-toggle {
+        width: auto;
+        flex: 0 0 auto;
+        justify-content: center;
     }
 
     .daily-goal-progress {
