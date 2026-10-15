@@ -105,10 +105,9 @@ const asDialogue = (value: unknown) => Array.isArray(value)
 
 export async function POST(request: Request) {
     const supabase = await createSupabaseServerClient();
-    if (supabase) {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return NextResponse.json({ error: "You must be signed in." }, { status: 401 });
-    }
+    if (!supabase) return NextResponse.json({ error: "Authentication is not configured." }, { status: 503 });
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: "You must be signed in." }, { status: 401 });
 
     const apiKey = process.env.GEMINI_API_KEY?.trim() || process.env.GOOGLE_GEMINI_API_KEY?.trim();
     if (!apiKey) return NextResponse.json({ error: "Gemini is not configured yet." }, { status: 503 });
