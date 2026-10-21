@@ -9,8 +9,7 @@ export const navItems: Array<{ id: View; label: string; icon: typeof BookOpenChe
     { id: "statistics", label: "Statistics", icon: BarChart3 },
 ];
 
-export const titleForView: Record<View, string> = {
-    review: "Hello there",
+export const titleForView: Partial<Record<View, string>> = {
     words: "Your vocabulary",
     translate: "Translate a word",
     folders: "Your collections",
@@ -19,16 +18,4 @@ export const titleForView: Record<View, string> = {
     add: "Add a word",
     "add-folder": "New folder",
     "word-detail": "Word details",
-};
-
-export const subtitleForView: Record<View, string> = {
-    add: "Give it just enough context to stick.",
-    "add-folder": "Keep a small set of related words together.",
-    review: "A few deliberate minutes is enough for today.",
-    words: "Every word has a place in your memory.",
-    translate: "Explore a word before it enters your memory.",
-    folders: "Keep related words close together.",
-    statistics: "Small repetitions become visible over time.",
-    settings: "Make the rhythm fit your day.",
-    "word-detail": "A closer look at this word.",
 };
