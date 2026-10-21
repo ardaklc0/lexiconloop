@@ -2598,13 +2598,20 @@ select.workspace-picker {
     .page-wrap:has(.dashboard-grid) {
         display: flex;
         flex-direction: column;
+        padding-top: 16px;
         padding-bottom: calc(var(--mobile-nav-height) + 16px);
+    }
+
+    /* Review has no visible header on mobile; drop its spacing so the card can center. */
+    .page-wrap:has(.dashboard-grid) .page-header {
+        display: none;
     }
 
     .dashboard-grid {
         flex: 0 0 auto;
         min-height: auto;
         align-items: stretch;
+        margin-block: auto;
     }
 
     .dashboard-grid:has(.flashcard-wrap) {
