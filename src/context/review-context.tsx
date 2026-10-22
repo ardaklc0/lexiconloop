@@ -5,10 +5,14 @@ import { makeId } from "@/lib/ids";
 import { calculateNextReview } from "@/lib/spaced-repetition";
 import { saveReview } from "@/lib/supabase/data";
 import type { ReviewRating, WordRecord } from "@/lib/types";
+import { pickRecallPrompt, type RecallPrompt, type TypedAttempt } from "@/lib/typed-answer";
 import { buildReviewQueue, defaultReviewFilters, filterReviewCards, type ReviewFilters } from "@/lib/word-filters";
 
 type ReviewSessionEntry = { logId: string; wordId: string; rating: ReviewRating };
 export type ReviewSession = { startedAt: number; entries: ReviewSessionEntry[] };
+
+export type ReviewMode = "flip" | "typed";
+const reviewModeStorageKey = "lexicon-loop-review-mode";
 
 type Review = {
     filters: ReviewFilters;
@@ -20,6 +24,11 @@ type Review = {
     setReviewSession: Dispatch<SetStateAction<ReviewSession | null>>;
     showReviewSummary: boolean;
     setShowReviewSummary: Dispatch<SetStateAction<boolean>>;
+    reviewMode: ReviewMode;
+    setReviewMode: (mode: ReviewMode) => void;
+    recallPrompt: RecallPrompt | null;
+    typedAttempt: TypedAttempt | null;
+    submitTypedAttempt: (attempt: TypedAttempt) => void;
     reviewCards: WordRecord[];
     queue: WordRecord[];
     currentCard: WordRecord | undefined;
@@ -40,6 +49,8 @@ export function ReviewProvider({ children }: { children: ReactNode }) {
     const [isFlipped, setIsFlipped] = useState(false);
     const [reviewSession, setReviewSession] = useState<ReviewSession | null>(null);
     const [showReviewSummary, setShowReviewSummary] = useState(false);
+    const [reviewMode, setReviewModeState] = useState<ReviewMode>("typed");
+    const [typedAttempt, setTypedAttempt] = useState<TypedAttempt | null>(null);
 
     // Changes only when another card becomes due, not every second.
     const latestPassedDueTime = useLatestPassedDueTime(cards);
@@ -50,9 +61,32 @@ export function ReviewProvider({ children }: { children: ReactNode }) {
     );
     const currentCard = queue[0];
 
+    // Cards never seen before (or without a meaning) are always shown the classic way.
+    const recallPrompt = useMemo(
+        () => reviewMode === "typed" && currentCard ? pickRecallPrompt(currentCard) : null,
+        [currentCard, reviewMode],
+    );
+
     useEffect(() => {
         setIsFlipped(false);
+        setTypedAttempt(null);
     }, [workspaceId]);
+
+    useEffect(() => {
+        if (window.localStorage.getItem(reviewModeStorageKey) === "flip") setReviewModeState("flip");
+    }, []);
+
+    const setReviewMode = useCallback((mode: ReviewMode) => {
+        setReviewModeState(mode);
+        setIsFlipped(false);
+        setTypedAttempt(null);
+        window.localStorage.setItem(reviewModeStorageKey, mode);
+    }, []);
+
+    const submitTypedAttempt = useCallback((attempt: TypedAttempt) => {
+        setTypedAttempt(attempt);
+        setIsFlipped(true);
+    }, []);
 
     const updateFilter = useCallback(<K extends keyof ReviewFilters>(key: K, value: ReviewFilters[K]) => {
         setFilters((previous) => ({ ...previous, [key]: value }));
@@ -61,6 +95,7 @@ export function ReviewProvider({ children }: { children: ReactNode }) {
     const clearFilters = useCallback(() => {
         setFilters(defaultReviewFilters);
         setIsFlipped(false);
+        setTypedAttempt(null);
     }, []);
 
     const handleReview = useCallback((rating: ReviewRating) => {
@@ -75,6 +110,7 @@ export function ReviewProvider({ children }: { children: ReactNode }) {
             entries: [...(session?.entries ?? []), { logId: reviewLog.id, wordId: currentCard.id, rating }],
         }));
         setIsFlipped(false);
+        setTypedAttempt(null);
 
         const cloud = getCloudContext();
         if (!cloud) return;
@@ -95,8 +131,9 @@ export function ReviewProvider({ children }: { children: ReactNode }) {
 
     const value = useMemo<Review>(() => ({
         filters, updateFilter, clearFilters, isFlipped, setIsFlipped, reviewSession, setReviewSession, showReviewSummary, setShowReviewSummary,
+        reviewMode, setReviewMode, recallPrompt, typedAttempt, submitTypedAttempt,
         reviewCards, queue, currentCard, handleReview,
-    }), [clearFilters, currentCard, filters, handleReview, isFlipped, queue, reviewCards, reviewSession, showReviewSummary, updateFilter]);
+    }), [clearFilters, currentCard, filters, handleReview, isFlipped, queue, recallPrompt, reviewCards, reviewMode, reviewSession, setReviewMode, showReviewSummary, submitTypedAttempt, typedAttempt, updateFilter]);
 
     return <ReviewContext.Provider value={value}>{children}</ReviewContext.Provider>;
 }
