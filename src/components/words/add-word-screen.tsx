@@ -26,13 +26,14 @@ export function AddWordScreen() {
         if (editingWordId) {
             const previous = cards.find((card) => card.id === editingWordId);
             if (!previous) return;
-            const updated = { ...previous, word: form.word.trim(), meaning: form.meaning.trim(), exampleSentence: form.exampleSentence.trim() || undefined, folderId: form.folderId, sourceLanguage: form.sourceLanguage, targetLanguage: form.targetLanguage, cefrLevel: form.cefrLevel || undefined, notes: form.notes.trim() || undefined };
+            const formsOutdated = previous.word !== form.word.trim() || previous.sourceLanguage !== form.sourceLanguage;
+            const updated = { ...previous, forms: formsOutdated ? undefined : previous.forms, word: form.word.trim(), meaning: form.meaning.trim(), exampleSentence: form.exampleSentence.trim() || undefined, folderId: form.folderId, sourceLanguage: form.sourceLanguage, targetLanguage: form.targetLanguage, cefrLevel: form.cefrLevel || undefined, notes: form.notes.trim() || undefined };
             setCards((items) => items.map((card) => card.id === editingWordId ? updated : card));
             navigate(returnView);
             if (cloud) {
                 setSyncStatus("Saving changes...");
                 try {
-                    await updateWord(cloud.client, cloud.userId, cloud.workspaceId, editingWordId, updated);
+                    await updateWord(cloud.client, cloud.userId, cloud.workspaceId, editingWordId, { ...updated, resetForms: formsOutdated });
                     setSyncStatus("Synced");
                 } catch (error) {
                     setCards((items) => items.map((card) => card.id === editingWordId ? previous : card));

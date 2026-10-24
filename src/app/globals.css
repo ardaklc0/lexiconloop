@@ -3335,3 +3335,161 @@ select.workspace-picker {
 .quiz-launch-button {
     margin-left: 0;
 }
+
+.typed-question {
+    display: grid;
+    gap: 2px;
+    color: var(--ink);
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.typed-question span {
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 400;
+}
+
+.spin {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .spin {
+        animation: none;
+    }
+}
+
+.sentence-coach {
+    display: grid;
+    gap: 12px;
+    min-width: 0;
+}
+
+.sentence-coach form {
+    display: grid;
+    gap: 8px;
+}
+
+.sentence-coach label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: "DM Mono", monospace;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    font-size: 10px;
+    color: var(--muted);
+}
+
+.sentence-coach textarea {
+    width: 100%;
+    resize: vertical;
+    border: 1px solid var(--line);
+    background: #fbfaf5;
+    border-radius: 7px;
+    padding: 10px 12px;
+    outline: 0;
+    color: var(--ink);
+    font-size: 16px;
+}
+
+.sentence-coach textarea:focus {
+    border-color: var(--sage);
+    box-shadow: 0 0 0 3px rgba(46, 98, 87, .1);
+}
+
+:root[data-theme="dark"] .sentence-coach textarea {
+    background: var(--surface);
+}
+
+.sentence-coach .primary-button {
+    justify-self: start;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.sentence-error {
+    margin: 0;
+    color: #bc5b4d;
+    font-size: 13px;
+}
+
+.sentence-feedback {
+    display: grid;
+    gap: 8px;
+    border-left: 3px solid var(--sage);
+    padding-left: 12px;
+    font-size: 14px;
+    overflow-wrap: anywhere;
+}
+
+.sentence-feedback.right {
+    border-color: #4f9a7e;
+}
+
+.sentence-feedback.close {
+    border-color: #d98e68;
+}
+
+.sentence-feedback strong {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.sentence-level {
+    margin-left: auto;
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    padding: 1px 6px;
+    font-family: "DM Mono", monospace;
+    font-size: 11px;
+}
+
+.sentence-feedback p,
+.sentence-feedback ul {
+    margin: 0;
+}
+
+.sentence-feedback ul {
+    padding-left: 18px;
+    display: grid;
+    gap: 4px;
+}
+
+.sentence-corrected span {
+    display: block;
+    font-family: "DM Mono", monospace;
+    text-transform: uppercase;
+    letter-spacing: .1em;
+    font-size: 9px;
+    color: var(--muted);
+}
+
+.sentence-corrected {
+    font-family: Fraunces, serif;
+    font-size: 18px;
+}
+
+.sentence-comment {
+    color: var(--muted);
+}
+
+.review-coach-toggle {
+    justify-self: center;
+    margin-top: 10px;
+}
+
+.review-coach {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--line);
+}

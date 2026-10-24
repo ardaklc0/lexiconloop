@@ -1,4 +1,4 @@
-import type { CefrLevel } from "@/lib/types";
+import type { CefrLevel, SentenceFeedback, WordForms } from "@/lib/types";
 
 export type QuizQuestion = {
     type: "multiple-choice" | "fill-blank";
@@ -102,4 +102,16 @@ export async function requestRelatedWord(input: { sourceLanguage: string; target
     const { ok, data } = await postJson<{ meaning?: string; sourceExample?: string; cefrLevel?: CefrLevel }>("/api/generate-related-word", input);
     if (!ok || !data.sourceExample || !data.cefrLevel) throw new Error(data.error ?? "Could not prepare this related word.");
     return { meaning: data.meaning, sourceExample: data.sourceExample, cefrLevel: data.cefrLevel };
+}
+
+export async function requestWordForms(input: { word: string; meaning?: string; sourceLanguage: string }) {
+    const { ok, data } = await postJson<{ forms?: WordForms }>("/api/enrich-word", input);
+    if (!ok || !data.forms) throw new Error(data.error ?? "Could not prepare grammar forms.");
+    return data.forms;
+}
+
+export async function requestSentenceFeedback(input: { word: string; meaning?: string; sentence: string; sourceLanguage: string; feedbackLanguage: string }) {
+    const { ok, data } = await postJson<SentenceFeedback>("/api/check-sentence", input);
+    if (!ok || !data.corrected) throw new Error(data.error ?? "Could not check the sentence.");
+    return data;
 }

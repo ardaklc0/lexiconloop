@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { CefrLevel, Folder, ReviewLog, ReviewRating, WordRecord, Workspace } from "@/lib/types";
+import type { CefrLevel, Folder, ReviewLog, ReviewRating, SentenceFeedback, WordForms, WordRecord, Workspace } from "@/lib/types";
 
 type WorkspaceRow = Workspace;
 
@@ -20,6 +20,7 @@ type WordRow = {
     target_language: string;
     cefr_level: CefrLevel | null;
     notes: string | null;
+    forms: WordForms | null;
     created_at: string;
 };
 
@@ -63,7 +64,7 @@ export async function deleteWorkspace(client: SupabaseClient, userId: string, wo
 export async function loadUserData(client: SupabaseClient, userId: string, workspaceId: string) {
     const [foldersResponse, wordsResponse, progressResponse, logsResponse] = await Promise.all([
         client.from("folders").select("id, name, description, color").eq("user_id", userId).eq("workspace_id", workspaceId).order("created_at"),
-        client.from("words").select("id, folder_id, word, meaning, example_sentence, source_language, target_language, cefr_level, notes, created_at").eq("user_id", userId).eq("workspace_id", workspaceId).order("created_at", { ascending: false }),
+        client.from("words").select("id, folder_id, word, meaning, example_sentence, source_language, target_language, cefr_level, notes, forms, created_at").eq("user_id", userId).eq("workspace_id", workspaceId).order("created_at", { ascending: false }),
         client.from("word_progress").select("word_id, state, stability, difficulty, due_at, last_review_at, reps, lapses").eq("user_id", userId).eq("workspace_id", workspaceId),
         client.from("review_logs").select("id, word_id, rating, reviewed_at").eq("user_id", userId).eq("workspace_id", workspaceId).order("reviewed_at", { ascending: false }),
     ]);
@@ -96,6 +97,7 @@ export async function loadUserData(client: SupabaseClient, userId: string, works
             targetLanguage: word.target_language,
             cefrLevel: word.cefr_level ?? undefined,
             notes: word.notes ?? undefined,
+            forms: word.forms ?? undefined,
             createdAt: word.created_at,
             state: progress?.state ?? "new",
             stability: progress?.stability ?? 0.25,
@@ -198,8 +200,10 @@ export async function insertFolder(client: SupabaseClient, userId: string, works
     return data as FolderRow;
 }
 
-export async function updateWord(client: SupabaseClient, userId: string, workspaceId: string, wordId: string, input: Pick<WordRecord, "word" | "meaning" | "exampleSentence" | "folderId" | "sourceLanguage" | "targetLanguage" | "cefrLevel" | "notes">) {
+export async function updateWord(client: SupabaseClient, userId: string, workspaceId: string, wordId: string, input: Pick<WordRecord, "word" | "meaning" | "exampleSentence" | "folderId" | "sourceLanguage" | "targetLanguage" | "cefrLevel" | "notes"> & { resetForms?: boolean }) {
     const { error } = await client.from("words").update({
+        // Grammar forms belong to the old spelling/language; the app fills them in again on the next review.
+        ...(input.resetForms ? { forms: null } : {}),
         word: input.word,
         meaning: input.meaning,
         example_sentence: input.exampleSentence ?? null,
@@ -232,5 +236,24 @@ export async function updateFolder(client: SupabaseClient, userId: string, works
 
 export async function deleteFolder(client: SupabaseClient, userId: string, workspaceId: string, folderId: string) {
     const { error } = await client.from("folders").delete().eq("id", folderId).eq("user_id", userId).eq("workspace_id", workspaceId);
+    if (error) throw new Error(error.message);
+}
+
+export async function saveWordForms(client: SupabaseClient, userId: string, workspaceId: string, wordId: string, forms: WordForms) {
+    const { error } = await client.from("words").update({ forms }).eq("id", wordId).eq("user_id", userId).eq("workspace_id", workspaceId);
+    if (error) throw new Error(error.message);
+}
+
+export async function insertSentenceAttempt(client: SupabaseClient, userId: string, workspaceId: string, wordId: string, sentence: string, feedback: SentenceFeedback) {
+    const { error } = await client.from("sentence_attempts").insert({
+        user_id: userId,
+        workspace_id: workspaceId,
+        word_id: wordId,
+        sentence,
+        corrected: feedback.corrected,
+        is_natural: feedback.isNatural,
+        cefr_estimate: feedback.cefrLevel ?? null,
+        errors: feedback.errors,
+    });
     if (error) throw new Error(error.message);
 }

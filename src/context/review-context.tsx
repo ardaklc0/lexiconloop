@@ -1,9 +1,11 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { useAppData } from "@/context/app-data-context";
 import { useLatestPassedDueTime } from "@/hooks/use-clock";
+import { requestWordForms } from "@/lib/api-client";
+import { hasGrammarForms } from "@/lib/grammar-languages";
 import { makeId } from "@/lib/ids";
 import { calculateNextReview } from "@/lib/spaced-repetition";
-import { saveReview } from "@/lib/supabase/data";
+import { saveReview, saveWordForms } from "@/lib/supabase/data";
 import type { ReviewRating, WordRecord } from "@/lib/types";
 import { pickRecallPrompt, type RecallPrompt, type TypedAttempt } from "@/lib/typed-answer";
 import { buildReviewQueue, defaultReviewFilters, filterReviewCards, type ReviewFilters } from "@/lib/word-filters";
@@ -51,6 +53,7 @@ export function ReviewProvider({ children }: { children: ReactNode }) {
     const [showReviewSummary, setShowReviewSummary] = useState(false);
     const [reviewMode, setReviewModeState] = useState<ReviewMode>("typed");
     const [typedAttempt, setTypedAttempt] = useState<TypedAttempt | null>(null);
+    const [enrichmentTick, setEnrichmentTick] = useState(0);
 
     // Changes only when another card becomes due, not every second.
     const latestPassedDueTime = useLatestPassedDueTime(cards);
@@ -71,6 +74,29 @@ export function ReviewProvider({ children }: { children: ReactNode }) {
         setIsFlipped(false);
         setTypedAttempt(null);
     }, [workspaceId]);
+
+    // Grammar forms are filled in lazily: the next few cards in the queue are enriched one at a time,
+    // each word at most once per page load, so a failing request never loops.
+    const enrichmentTried = useRef(new Set<string>());
+    const enrichmentRunning = useRef(false);
+    const upcomingMissingForms = queue.slice(0, 3).find((card) => !card.forms && hasGrammarForms(card.sourceLanguage) && !enrichmentTried.current.has(card.id));
+    useEffect(() => {
+        const target = upcomingMissingForms;
+        if (!target || enrichmentRunning.current) return;
+        enrichmentRunning.current = true;
+        enrichmentTried.current.add(target.id);
+        void requestWordForms({ word: target.word, meaning: target.meaning, sourceLanguage: target.sourceLanguage })
+            .then(async (forms) => {
+                setCards((previous) => previous.map((card) => card.id === target.id ? { ...card, forms } : card));
+                const cloud = getCloudContext();
+                if (cloud) await saveWordForms(cloud.client, cloud.userId, cloud.workspaceId, target.id, forms);
+            })
+            .catch(() => undefined)
+            .finally(() => {
+                enrichmentRunning.current = false;
+                setEnrichmentTick((value) => value + 1);
+            });
+    }, [enrichmentTick, getCloudContext, setCards, upcomingMissingForms]);
 
     useEffect(() => {
         if (window.localStorage.getItem(reviewModeStorageKey) === "flip") setReviewModeState("flip");

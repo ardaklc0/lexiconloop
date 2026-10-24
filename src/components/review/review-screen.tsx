@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowRight, BookOpenCheck, Check, Clock3, Keyboard, ListChec
 import { useQuiz } from "@/components/quiz/use-quiz";
 import { DailyGoalProgress } from "@/components/review/daily-goal-progress";
 import { Flashcard } from "@/components/review/flashcard";
+import { SentenceCoachToggle } from "@/components/review/sentence-coach";
 import { TypedCard } from "@/components/review/typed-card";
 import { ReviewFilterPanel } from "@/components/review/review-filters";
 import { SessionSummary } from "@/components/review/session-summary";
@@ -103,6 +104,7 @@ export function ReviewScreen() {
                     {recallPrompt ? <TypedCard key={`${currentCard.id}-${currentCard.reps}`} card={currentCard} prompt={recallPrompt} /> : <Flashcard card={currentCard} />}
                     <div className="stage-actions review-rating-actions"><button className={`review-action forgot${typedAttempt?.suggested === "forgot" ? " suggested" : ""}`} disabled={!isFlipped} onClick={() => handleReview("forgot")}><ArrowLeft size={15} /> Forgot</button><button className={`review-action hard${typedAttempt?.suggested === "hard" ? " suggested" : ""}`} disabled={!isFlipped} onClick={() => handleReview("hard")}><Clock3 size={15} /> Hard</button><button className={`review-action good${typedAttempt?.suggested === "good" ? " suggested" : ""}`} disabled={!isFlipped} onClick={() => handleReview("good")}><Check size={15} /> Good</button><button className={`review-action easy${typedAttempt?.suggested === "easy" ? " suggested" : ""}`} disabled={!isFlipped} onClick={() => handleReview("easy")}><Sparkles size={15} /> Easy</button></div>
                     <div className="stage-footnote"><Keyboard size={12} style={{ verticalAlign: "-2px", marginRight: 4 }} /> {recallPrompt ? (isFlipped ? "Enter to accept the suggested rating · 1 Forgot · 2 Hard · 3 Good · 4 Easy" : "Enter to check your answer") : "Space to reveal · 1 Forgot · 2 Hard · 3 Good · 4 Easy"}</div>
+                    {isFlipped && currentCard.reps >= 3 && <SentenceCoachToggle key={`${currentCard.id}-${currentCard.reps}`} card={currentCard} />}
                 </> : <div className="empty-stage"><div><Check size={34} /><h2>All clear for now.</h2><p>Your next cards will appear here when they are due. A quiet win.</p><button className="primary-button" style={{ marginTop: 22 }} onClick={() => navigate("words")}>Browse words <ArrowRight size={14} /></button></div></div>}
             </section>
         </div>

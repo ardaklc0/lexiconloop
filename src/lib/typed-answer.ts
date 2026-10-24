@@ -1,11 +1,13 @@
+import { grammarLanguages } from "@/lib/grammar-languages";
 import type { ReviewRating, WordRecord } from "@/lib/types";
 
-export type ActiveRecallMode = "reverse" | "cloze";
+export type ActiveRecallMode = "reverse" | "cloze" | "form";
 export type AnswerGrade = "exact" | "accent" | "close" | "wrong";
 export type TypedAttempt = { answer: string; grade: AnswerGrade; suggested: ReviewRating; skipped: boolean };
 export type RecallPrompt =
     | { mode: "reverse" }
-    | { mode: "cloze"; before: string; after: string; surface: string };
+    | { mode: "cloze"; before: string; after: string; surface: string; isInflected: boolean }
+    | { mode: "form"; question: string; answer: string; expected: string[] };
 
 const articles = new Set(["der", "die", "das", "den", "dem", "des", "ein", "eine", "einen", "einem", "einer", "the", "a", "an", "le", "la", "les", "l", "un", "une", "el", "los", "las", "il", "lo", "gli", "bir", "to"]);
 
@@ -87,21 +89,60 @@ const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\
 export function buildCloze(card: WordRecord): Extract<RecallPrompt, { mode: "cloze" }> | null {
     const sentence = card.exampleSentence?.trim();
     if (!sentence) return null;
-    const candidates = [...answerVariants(card.word), tidy(card.word)].filter(Boolean).sort((a, b) => b.length - a.length);
+    const variants = answerVariants(card.word);
+    const inflected = (card.forms?.inflected ?? []).map(tidy);
+    const candidates = Array.from(new Set([...variants, tidy(card.word), ...inflected])).filter(Boolean).sort((a, b) => b.length - a.length);
     for (const candidate of candidates) {
         const pattern = candidate.split(" ").map(escapeRegExp).join("\\s+");
         const match = new RegExp(`(^|[^\\p{L}\\p{N}])(${pattern})(?![\\p{L}\\p{N}])`, "iu").exec(sentence);
         if (!match) continue;
         const start = match.index + match[1].length;
-        return { mode: "cloze", before: sentence.slice(0, start), after: sentence.slice(start + match[2].length), surface: match[2] };
+        return {
+            mode: "cloze",
+            before: sentence.slice(0, start),
+            after: sentence.slice(start + match[2].length),
+            surface: match[2],
+            isInflected: !variants.includes(dropArticle(tidy(match[2]))),
+        };
     }
     return null;
+}
+
+type FormPrompt = Extract<RecallPrompt, { mode: "form" }>;
+
+// Questions about the grammar data the AI stored for the word (article, plural, tenses).
+export function buildFormQuestions(card: WordRecord): FormPrompt[] {
+    const forms = card.forms;
+    const grammar = grammarLanguages[card.sourceLanguage];
+    if (!forms || !grammar) return [];
+    const questions: FormPrompt[] = [];
+    const add = (question: string, answer: string | undefined, accepted: string[] = []) => {
+        if (!answer) return;
+        const expected = Array.from(new Set([...answerVariants(answer), ...accepted.flatMap(answerVariants)]));
+        if (expected.length) questions.push({ mode: "form", question, answer, expected });
+    };
+    if (forms.partOfSpeech === "noun") {
+        add("Article?", forms.article);
+        add("Plural?", forms.plural);
+    }
+    if (forms.partOfSpeech === "verb") {
+        // The participle alone ("gelaufen") is accepted as well as "ist gelaufen".
+        add(`${grammar.perfect}? (3rd person singular)`, forms.perfect, [forms.perfect?.split(/\s+/).pop() ?? ""]);
+        add(`${grammar.pastSimple}? (3rd person singular)`, forms.pastSimple);
+        add("Separable prefix?", forms.separablePrefix);
+    }
+    return questions;
 }
 
 // Typing needs something already seen, and a meaning to prompt with.
 // Cloze and reverse alternate so consecutive reviews of a word feel different.
 export function pickRecallPrompt(card: WordRecord): RecallPrompt | null {
     if (card.reps === 0 || card.state === "new" || !card.meaning.trim()) return null;
+    // Every third review (when grammar data exists) asks a grammar question instead.
+    if (card.reps % 3 === 2) {
+        const questions = buildFormQuestions(card);
+        if (questions.length) return questions[Math.floor(card.reps / 3) % questions.length];
+    }
     if (card.reps % 2 === 0) {
         const cloze = buildCloze(card);
         if (cloze) return cloze;
