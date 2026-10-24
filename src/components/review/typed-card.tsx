@@ -22,7 +22,8 @@ export function TypedCard({ card, prompt }: { card: WordRecord; prompt: RecallPr
 
     useEffect(() => {
         setValue("");
-        inputRef.current?.focus();
+        // Focusing must not scroll the page: on phones the keyboard already moves the view.
+        inputRef.current?.focus({ preventScroll: true });
     }, [card.id, card.reps]);
 
     function check(event: FormEvent) {

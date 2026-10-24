@@ -34,6 +34,16 @@ export function ReviewScreen() {
         }
     }, [initialDataError, isInitialDataLoading, queue.length, reviewSession?.entries.length, setShowReviewSummary, showQuiz, showReviewSummary]);
 
+    // After rating, the next card should start at the top, not at the scroll position of the previous result.
+    const currentCardKey = currentCard ? `${currentCard.id}-${currentCard.reps}` : "";
+    useEffect(() => {
+        if (!currentCardKey) return;
+        // On phones the page scrolls inside .page-wrap, on desktop the window scrolls.
+        const scroller = document.querySelector(".page-wrap");
+        if (scroller && scroller.scrollTop > 0) scroller.scrollTo({ top: 0 });
+        if (window.scrollY > 0) window.scrollTo({ top: 0 });
+    }, [currentCardKey]);
+
     useEffect(() => {
         const handleKey = (event: KeyboardEvent) => {
             const target = event.target as HTMLElement | null;
