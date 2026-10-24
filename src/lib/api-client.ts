@@ -110,7 +110,7 @@ export async function requestWordForms(input: { word: string; meaning?: string; 
     return data.forms;
 }
 
-export async function requestSentenceFeedback(input: { word: string; meaning?: string; sentence: string; sourceLanguage: string; feedbackLanguage: string }) {
+export async function requestSentenceFeedback(input: { word: string; meaning?: string; sentence: string; sourceLanguage: string; feedbackLanguage: string; inflected?: string[] }) {
     const { ok, data } = await postJson<SentenceFeedback>("/api/check-sentence", input);
     if (!ok || !data.corrected) throw new Error(data.error ?? "Could not check the sentence.");
     return data;

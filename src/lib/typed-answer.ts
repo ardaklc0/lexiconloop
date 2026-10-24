@@ -84,28 +84,27 @@ export const skippedAttempt = (): TypedAttempt => ({ answer: "", grade: "wrong",
 
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-// Finds the word inside the example sentence (whole word, case-insensitive).
-// Returns null when it only appears inflected or not at all, so the caller falls back to reverse mode.
+// Finds the word (or one of its inflected forms) inside a sentence as a whole word, case-insensitively.
+export function findWordInText(text: string, word: string, inflected: string[] = []) {
+    const variants = answerVariants(word);
+    const candidates = Array.from(new Set([...variants, tidy(word), ...inflected.map(tidy)])).filter(Boolean).sort((a, b) => b.length - a.length);
+    for (const candidate of candidates) {
+        const pattern = candidate.split(" ").map(escapeRegExp).join("\\s+");
+        const match = new RegExp(`(^|[^\\p{L}\\p{N}])(${pattern})(?![\\p{L}\\p{N}])`, "iu").exec(text);
+        if (!match) continue;
+        const start = match.index + match[1].length;
+        return { start, end: start + match[2].length, surface: match[2], isInflected: !variants.includes(dropArticle(tidy(match[2]))) };
+    }
+    return null;
+}
+
+// Returns null when the word only appears in a form we do not know, so the caller falls back to reverse mode.
 export function buildCloze(card: WordRecord): Extract<RecallPrompt, { mode: "cloze" }> | null {
     const sentence = card.exampleSentence?.trim();
     if (!sentence) return null;
-    const variants = answerVariants(card.word);
-    const inflected = (card.forms?.inflected ?? []).map(tidy);
-    const candidates = Array.from(new Set([...variants, tidy(card.word), ...inflected])).filter(Boolean).sort((a, b) => b.length - a.length);
-    for (const candidate of candidates) {
-        const pattern = candidate.split(" ").map(escapeRegExp).join("\\s+");
-        const match = new RegExp(`(^|[^\\p{L}\\p{N}])(${pattern})(?![\\p{L}\\p{N}])`, "iu").exec(sentence);
-        if (!match) continue;
-        const start = match.index + match[1].length;
-        return {
-            mode: "cloze",
-            before: sentence.slice(0, start),
-            after: sentence.slice(start + match[2].length),
-            surface: match[2],
-            isInflected: !variants.includes(dropArticle(tidy(match[2]))),
-        };
-    }
-    return null;
+    const found = findWordInText(sentence, card.word, card.forms?.inflected);
+    if (!found) return null;
+    return { mode: "cloze", before: sentence.slice(0, found.start), after: sentence.slice(found.end), surface: found.surface, isInflected: found.isInflected };
 }
 
 type FormPrompt = Extract<RecallPrompt, { mode: "form" }>;

@@ -21,7 +21,7 @@ export function SentenceCoach({ card }: { card: WordRecord }) {
         setLoading(true);
         setError("");
         try {
-            const result = await requestSentenceFeedback({ word: card.word, meaning: card.meaning, sentence: text, sourceLanguage: card.sourceLanguage, feedbackLanguage: card.targetLanguage });
+            const result = await requestSentenceFeedback({ word: card.word, meaning: card.meaning, sentence: text, sourceLanguage: card.sourceLanguage, feedbackLanguage: card.targetLanguage, inflected: card.forms ? card.forms.inflected ?? [] : undefined });
             setFeedback(result);
             setCheckedSentence(text);
             const cloud = getCloudContext();

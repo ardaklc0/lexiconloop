@@ -13,9 +13,9 @@ export async function requireGeminiUser() {
     return { apiKey };
 }
 
-export async function generateJson(apiKey: string, prompt: string, temperature = 0.2) {
+export async function generateJson(apiKey: string, prompt: string, temperature = 0.2, modelName = "gemini-2.5-flash-lite") {
     const model = new GoogleGenerativeAI(apiKey).getGenerativeModel({
-        model: "gemini-2.5-flash-lite",
+        model: modelName,
         generationConfig: { responseMimeType: "application/json", temperature },
     });
     const result = await model.generateContent(prompt);
