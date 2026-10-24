@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { CefrLevel, Folder, ReviewLog, ReviewRating, SentenceFeedback, WordForms, WordRecord, Workspace } from "@/lib/types";
+import type { CefrLevel, Folder, ReviewLog, ReviewRating, SentenceFeedback, WordFamily, WordForms, WordRecord, Workspace } from "@/lib/types";
 
 type WorkspaceRow = Workspace;
 
@@ -21,6 +21,8 @@ type WordRow = {
     cefr_level: CefrLevel | null;
     notes: string | null;
     forms: WordForms | null;
+    word_family: WordFamily | null;
+    cloze_sentences: string[] | null;
     created_at: string;
 };
 
@@ -64,7 +66,7 @@ export async function deleteWorkspace(client: SupabaseClient, userId: string, wo
 export async function loadUserData(client: SupabaseClient, userId: string, workspaceId: string) {
     const [foldersResponse, wordsResponse, progressResponse, logsResponse] = await Promise.all([
         client.from("folders").select("id, name, description, color").eq("user_id", userId).eq("workspace_id", workspaceId).order("created_at"),
-        client.from("words").select("id, folder_id, word, meaning, example_sentence, source_language, target_language, cefr_level, notes, forms, created_at").eq("user_id", userId).eq("workspace_id", workspaceId).order("created_at", { ascending: false }),
+        client.from("words").select("id, folder_id, word, meaning, example_sentence, source_language, target_language, cefr_level, notes, forms, word_family, cloze_sentences, created_at").eq("user_id", userId).eq("workspace_id", workspaceId).order("created_at", { ascending: false }),
         client.from("word_progress").select("word_id, state, stability, difficulty, due_at, last_review_at, reps, lapses").eq("user_id", userId).eq("workspace_id", workspaceId),
         client.from("review_logs").select("id, word_id, rating, reviewed_at").eq("user_id", userId).eq("workspace_id", workspaceId).order("reviewed_at", { ascending: false }),
     ]);
@@ -98,6 +100,8 @@ export async function loadUserData(client: SupabaseClient, userId: string, works
             cefrLevel: word.cefr_level ?? undefined,
             notes: word.notes ?? undefined,
             forms: word.forms ?? undefined,
+            wordFamily: word.word_family ?? undefined,
+            clozeSentences: word.cloze_sentences ?? undefined,
             createdAt: word.created_at,
             state: progress?.state ?? "new",
             stability: progress?.stability ?? 0.25,
@@ -203,7 +207,7 @@ export async function insertFolder(client: SupabaseClient, userId: string, works
 export async function updateWord(client: SupabaseClient, userId: string, workspaceId: string, wordId: string, input: Pick<WordRecord, "word" | "meaning" | "exampleSentence" | "folderId" | "sourceLanguage" | "targetLanguage" | "cefrLevel" | "notes"> & { resetForms?: boolean }) {
     const { error } = await client.from("words").update({
         // Grammar forms belong to the old spelling/language; the app fills them in again on the next review.
-        ...(input.resetForms ? { forms: null } : {}),
+        ...(input.resetForms ? { forms: null, word_family: null, cloze_sentences: null } : {}),
         word: input.word,
         meaning: input.meaning,
         example_sentence: input.exampleSentence ?? null,
@@ -255,5 +259,63 @@ export async function insertSentenceAttempt(client: SupabaseClient, userId: stri
         cefr_estimate: feedback.cefrLevel ?? null,
         errors: feedback.errors,
     });
+    if (error) throw new Error(error.message);
+}
+
+export async function saveWordFamily(client: SupabaseClient, userId: string, workspaceId: string, wordId: string, family: WordFamily) {
+    const { error } = await client.from("words").update({ word_family: family }).eq("id", wordId).eq("user_id", userId).eq("workspace_id", workspaceId);
+    if (error) throw new Error(error.message);
+}
+
+export async function saveClozeSentences(client: SupabaseClient, userId: string, workspaceId: string, wordId: string, sentences: string[]) {
+    const { error } = await client.from("words").update({ cloze_sentences: sentences }).eq("id", wordId).eq("user_id", userId).eq("workspace_id", workspaceId);
+    if (error) throw new Error(error.message);
+}
+
+export type GrammarAttemptInput = {
+    wordId: string;
+    mode: "reverse" | "cloze" | "form";
+    formKind?: "article" | "plural" | "perfect" | "pastSimple" | "prefix";
+    grade: "exact" | "accent" | "close" | "wrong";
+    skipped: boolean;
+};
+
+export async function insertGrammarAttempt(client: SupabaseClient, userId: string, workspaceId: string, input: GrammarAttemptInput) {
+    const { error } = await client.from("grammar_attempts").insert({
+        user_id: userId,
+        workspace_id: workspaceId,
+        word_id: input.wordId,
+        mode: input.mode,
+        form_kind: input.formKind ?? null,
+        grade: input.grade,
+        skipped: input.skipped,
+    });
+    if (error) throw new Error(error.message);
+}
+
+export type RecentGrammarAttempt = Omit<GrammarAttemptInput, "wordId"> & { wordId: string; createdAt: string };
+export type RecentSentenceAttempt = { wordId: string; isNatural: boolean | null; cefrEstimate: string | null; errors: Array<{ type: string; explanation: string }>; createdAt: string };
+
+export async function loadRecentAttempts(client: SupabaseClient, userId: string, workspaceId: string, sinceIso: string) {
+    const [grammar, sentences] = await Promise.all([
+        client.from("grammar_attempts").select("word_id, mode, form_kind, grade, skipped, created_at").eq("user_id", userId).eq("workspace_id", workspaceId).gte("created_at", sinceIso),
+        client.from("sentence_attempts").select("word_id, is_natural, cefr_estimate, errors, created_at").eq("user_id", userId).eq("workspace_id", workspaceId).gte("created_at", sinceIso),
+    ]);
+    const error = grammar.error ?? sentences.error;
+    if (error) throw new Error(error.message);
+    return {
+        grammar: (grammar.data ?? []).map((row): RecentGrammarAttempt => ({ wordId: row.word_id, mode: row.mode, formKind: row.form_kind ?? undefined, grade: row.grade, skipped: row.skipped, createdAt: row.created_at })),
+        sentences: (sentences.data ?? []).map((row): RecentSentenceAttempt => ({ wordId: row.word_id, isNatural: row.is_natural, cefrEstimate: row.cefr_estimate, errors: Array.isArray(row.errors) ? row.errors : [], createdAt: row.created_at })),
+    };
+}
+
+export async function loadWeeklySummary<T>(client: SupabaseClient, userId: string, workspaceId: string, weekStart: string) {
+    const { data, error } = await client.from("weekly_summaries").select("summary").eq("user_id", userId).eq("workspace_id", workspaceId).eq("week_start", weekStart).maybeSingle();
+    if (error) throw new Error(error.message);
+    return (data?.summary as T | undefined) ?? null;
+}
+
+export async function saveWeeklySummary(client: SupabaseClient, userId: string, workspaceId: string, weekStart: string, summary: unknown) {
+    const { error } = await client.from("weekly_summaries").upsert({ user_id: userId, workspace_id: workspaceId, week_start: weekStart, summary }, { onConflict: "workspace_id,week_start" });
     if (error) throw new Error(error.message);
 }

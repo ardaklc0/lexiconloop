@@ -1,4 +1,5 @@
-import type { CefrLevel, SentenceFeedback, WordForms } from "@/lib/types";
+import type { CefrLevel, SentenceFeedback, Story, WordFamily, WordForms } from "@/lib/types";
+import type { WeeklyStats, WeeklySummary } from "@/lib/weekly-stats";
 
 export type QuizQuestion = {
     type: "multiple-choice" | "fill-blank";
@@ -98,7 +99,7 @@ export async function requestTranslation(input: { sourceLanguage: string; target
     return data;
 }
 
-export async function requestRelatedWord(input: { sourceLanguage: string; targetLanguage: string; word: string; meaning: string; relation: "synonym" | "antonym" }) {
+export async function requestRelatedWord(input: { sourceLanguage: string; targetLanguage: string; word: string; meaning: string; relation: "synonym" | "antonym" | "family" }) {
     const { ok, data } = await postJson<{ meaning?: string; sourceExample?: string; cefrLevel?: CefrLevel }>("/api/generate-related-word", input);
     if (!ok || !data.sourceExample || !data.cefrLevel) throw new Error(data.error ?? "Could not prepare this related word.");
     return { meaning: data.meaning, sourceExample: data.sourceExample, cefrLevel: data.cefrLevel };
@@ -113,5 +114,29 @@ export async function requestWordForms(input: { word: string; meaning?: string; 
 export async function requestSentenceFeedback(input: { word: string; meaning?: string; sentence: string; sourceLanguage: string; feedbackLanguage: string; inflected?: string[] }) {
     const { ok, data } = await postJson<SentenceFeedback>("/api/check-sentence", input);
     if (!ok || !data.corrected) throw new Error(data.error ?? "Could not check the sentence.");
+    return data;
+}
+
+export async function requestWordFamily(input: { word: string; meaning?: string; sourceLanguage: string; targetLanguage: string }) {
+    const { ok, data } = await postJson<{ family?: WordFamily }>("/api/word-family", input);
+    if (!ok || !data.family) throw new Error(data.error ?? "Could not find related words.");
+    return data.family;
+}
+
+export async function requestClozeSentences(input: { word: string; meaning?: string; sourceLanguage: string; cefrLevel?: CefrLevel; inflected?: string[] }) {
+    const { ok, data } = await postJson<{ sentences?: string[] }>("/api/generate-cloze", input);
+    if (!ok || !data.sentences?.length) throw new Error(data.error ?? "Could not prepare practice sentences.");
+    return data.sentences;
+}
+
+export async function requestStory(input: { sourceLanguage: string; feedbackLanguage: string; cefrLevel: CefrLevel; words: Array<{ word: string; meaning: string }> }) {
+    const { ok, data } = await postJson<Story>("/api/generate-story", input);
+    if (!ok || !data.text) throw new Error(data.error ?? "Could not write a story.");
+    return data;
+}
+
+export async function requestWeeklySummary(input: { stats: WeeklyStats; feedbackLanguage: string }) {
+    const { ok, data } = await postJson<WeeklySummary>("/api/weekly-summary", input);
+    if (!ok || !data.headline) throw new Error(data.error ?? "Could not write the weekly summary.");
     return data;
 }

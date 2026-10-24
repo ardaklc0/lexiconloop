@@ -17,6 +17,21 @@ export type WordForms = {
     inflected?: string[];
 };
 
+export type FamilyItem = { word: string; translation: string; category?: string };
+
+export type WordFamily = { family: FamilyItem[]; synonyms: FamilyItem[]; antonyms: FamilyItem[] };
+
+export type StoryQuestion = { question: string; options: string[]; answer: string; explanation: string };
+
+export type Story = {
+    title: string;
+    text: string;
+    highlights: Array<{ surface: string; word: string; meaning: string }>;
+    questions: StoryQuestion[];
+    cefrLevel: CefrLevel;
+    sourceLanguage: string;
+};
+
 export type SentenceError = { type: string; explanation: string };
 
 export type SentenceFeedback = {
@@ -38,6 +53,8 @@ export type WordRecord = {
     cefrLevel?: CefrLevel;
     notes?: string;
     forms?: WordForms;
+    wordFamily?: WordFamily;
+    clozeSentences?: string[];
     createdAt: string;
     state: CardState;
     stability: number;

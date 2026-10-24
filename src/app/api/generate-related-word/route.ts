@@ -19,13 +19,13 @@ export async function POST(request: Request) {
             targetLanguage?: string;
             word?: string;
             meaning?: string;
-            relation?: "synonym" | "antonym";
+            relation?: "synonym" | "antonym" | "family";
         };
         const sourceLanguage = asText(body.sourceLanguage) || "German";
         const targetLanguage = asText(body.targetLanguage) || "English";
         const word = asText(body.word);
         const meaning = asText(body.meaning);
-        const relation = body.relation === "antonym" ? "antonym" : "synonym";
+        const relation = body.relation === "antonym" ? "antonym" : body.relation === "family" ? "family" : "synonym";
         if (!word || !meaning) return NextResponse.json({ error: "A related word and its meaning are required." }, { status: 400 });
 
         const client = new GoogleGenerativeAI(apiKey);

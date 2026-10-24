@@ -1,7 +1,7 @@
 import { Check, CirclePlus } from "lucide-react";
 import type { TranslationItem } from "@/lib/api-client";
 
-export type Relation = "synonym" | "antonym";
+export type Relation = "synonym" | "antonym" | "family";
 export type SaveState = "saving" | "saved";
 
 export const translationSaveKey = (word: string, relation: Relation) => `${relation}:${word.trim().toLocaleLowerCase()}`;

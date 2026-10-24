@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
-import { ArrowLeft, ArrowRight, BookOpenCheck, Check, Clock3, Keyboard, ListChecks, PenLine, Settings2, Sparkles, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpenCheck, Check, Clock3, Keyboard, BookOpen, ListChecks, PenLine, Settings2, Sparkles, X } from "lucide-react";
 import { useQuiz } from "@/components/quiz/use-quiz";
 import { DailyGoalProgress } from "@/components/review/daily-goal-progress";
 import { Flashcard } from "@/components/review/flashcard";
@@ -14,6 +14,7 @@ import { useReview } from "@/context/review-context";
 import { screenState, useScreenState } from "@/hooks/use-screen-state";
 import type { WordRecord } from "@/lib/types";
 
+const StoryScreen = dynamic(() => import("@/components/story/story-screen").then((module) => module.StoryScreen));
 const QuizScreen = dynamic(() => import("@/components/quiz/quiz-screen").then((module) => module.QuizScreen));
 
 const filtersOpenState = screenState("review.filters-open", false);
@@ -26,6 +27,7 @@ export function ReviewScreen() {
     const [reviewFiltersOpen, setReviewFiltersOpen] = useScreenState(filtersOpenState);
     // Not kept between visits: leaving the review screen closes the quiz.
     const [showQuiz, setShowQuiz] = useState(false);
+    const [showStory, setShowStory] = useState(false);
     const [sessionPracticeQuiz, setSessionPracticeQuiz] = useState(false);
 
     useEffect(() => {
@@ -95,6 +97,7 @@ export function ReviewScreen() {
         }
     }
 
+    if (showStory) return <StoryScreen onClose={() => setShowStory(false)} />;
     if (showQuiz) return <QuizScreen quiz={quiz} practice={sessionPracticeQuiz} onClose={closeQuiz} />;
     return (
         <div className="dashboard-grid">
@@ -103,6 +106,7 @@ export function ReviewScreen() {
                     <div className="stage-progress"><strong>{isInitialDataLoading ? "Loading vocabulary..." : initialDataError ? "Could not load vocabulary" : `${queue.length} cards due`}</strong>{!isInitialDataLoading && !initialDataError && <span>{reviewCards.length} in your library</span>}</div>
                     {!isInitialDataLoading && !initialDataError && !showReviewSummary && <DailyGoalProgress />}
                     <button className="ghost-button quiz-launch-button" onClick={() => setShowQuiz(true)} disabled={!quiz.quizCards.length}><ListChecks size={14} /> Quiz</button>
+                    <button className="ghost-button quiz-launch-button" onClick={() => setShowStory(true)} disabled={!cards.length}><BookOpen size={14} /> Story</button>
                     <div className="review-controls">
                         {reviewSession?.entries.length ? <button type="button" className="ghost-button filter-toggle" onClick={() => setShowReviewSummary(true)}><Check size={14} /> Finish</button> : null}
                         <button type="button" className={`ghost-button filter-toggle ${reviewMode === "typed" ? "active" : ""}`} aria-pressed={reviewMode === "typed"} title="Type answers instead of flipping cards" onClick={() => setReviewMode(reviewMode === "typed" ? "flip" : "typed")}><PenLine size={14} /> Typing</button>

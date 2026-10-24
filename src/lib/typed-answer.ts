@@ -3,11 +3,12 @@ import type { ReviewRating, WordRecord } from "@/lib/types";
 
 export type ActiveRecallMode = "reverse" | "cloze" | "form";
 export type AnswerGrade = "exact" | "accent" | "close" | "wrong";
-export type TypedAttempt = { answer: string; grade: AnswerGrade; suggested: ReviewRating; skipped: boolean };
+export type FormKind = "article" | "plural" | "perfect" | "pastSimple" | "prefix";
+export type TypedAttempt = { answer: string; grade: AnswerGrade; suggested: ReviewRating; skipped: boolean; mode?: ActiveRecallMode; formKind?: FormKind };
 export type RecallPrompt =
     | { mode: "reverse" }
     | { mode: "cloze"; before: string; after: string; surface: string; isInflected: boolean }
-    | { mode: "form"; question: string; answer: string; expected: string[] };
+    | { mode: "form"; kind: FormKind; question: string; answer: string; expected: string[] };
 
 const articles = new Set(["der", "die", "das", "den", "dem", "des", "ein", "eine", "einen", "einem", "einer", "the", "a", "an", "le", "la", "les", "l", "un", "une", "el", "los", "las", "il", "lo", "gli", "bir", "to"]);
 
@@ -98,12 +99,16 @@ export function findWordInText(text: string, word: string, inflected: string[] =
     return null;
 }
 
-// Returns null when the word only appears in a form we do not know, so the caller falls back to reverse mode.
+// The example sentence plus the AI-written practice sentences, whichever contain the word (or a known form of it).
+// Several matches take turns between reviews. Returns null when none does, so the caller falls back to reverse mode.
 export function buildCloze(card: WordRecord): Extract<RecallPrompt, { mode: "cloze" }> | null {
-    const sentence = card.exampleSentence?.trim();
-    if (!sentence) return null;
-    const found = findWordInText(sentence, card.word, card.forms?.inflected);
-    if (!found) return null;
+    const sentences = [card.exampleSentence, ...(card.clozeSentences ?? [])].map((sentence) => sentence?.trim()).filter((sentence): sentence is string => Boolean(sentence));
+    const matches = sentences.flatMap((sentence) => {
+        const found = findWordInText(sentence, card.word, card.forms?.inflected);
+        return found ? [{ sentence, found }] : [];
+    });
+    if (!matches.length) return null;
+    const { sentence, found } = matches[Math.floor(card.reps / 2) % matches.length];
     return { mode: "cloze", before: sentence.slice(0, found.start), after: sentence.slice(found.end), surface: found.surface, isInflected: found.isInflected };
 }
 
@@ -115,20 +120,20 @@ export function buildFormQuestions(card: WordRecord): FormPrompt[] {
     const grammar = grammarLanguages[card.sourceLanguage];
     if (!forms || !grammar) return [];
     const questions: FormPrompt[] = [];
-    const add = (question: string, answer: string | undefined, accepted: string[] = []) => {
+    const add = (kind: FormKind, question: string, answer: string | undefined, accepted: string[] = []) => {
         if (!answer) return;
         const expected = Array.from(new Set([...answerVariants(answer), ...accepted.flatMap(answerVariants)]));
-        if (expected.length) questions.push({ mode: "form", question, answer, expected });
+        if (expected.length) questions.push({ mode: "form", kind, question, answer, expected });
     };
     if (forms.partOfSpeech === "noun") {
-        add("Article?", forms.article);
-        add("Plural?", forms.plural);
+        add("article", "Article?", forms.article);
+        add("plural", "Plural?", forms.plural);
     }
     if (forms.partOfSpeech === "verb") {
         // The participle alone ("gelaufen") is accepted as well as "ist gelaufen".
-        add(`${grammar.perfect}? (3rd person singular)`, forms.perfect, [forms.perfect?.split(/\s+/).pop() ?? ""]);
-        add(`${grammar.pastSimple}? (3rd person singular)`, forms.pastSimple);
-        add("Separable prefix?", forms.separablePrefix);
+        add("perfect", `${grammar.perfect}? (3rd person singular)`, forms.perfect, [forms.perfect?.split(/\s+/).pop() ?? ""]);
+        add("pastSimple", `${grammar.pastSimple}? (3rd person singular)`, forms.pastSimple);
+        add("prefix", "Separable prefix?", forms.separablePrefix);
     }
     return questions;
 }

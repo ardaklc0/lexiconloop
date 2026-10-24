@@ -1,13 +1,13 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { useAppData } from "@/context/app-data-context";
 import { useLatestPassedDueTime } from "@/hooks/use-clock";
-import { requestWordForms } from "@/lib/api-client";
+import { requestClozeSentences, requestWordForms } from "@/lib/api-client";
 import { hasGrammarForms } from "@/lib/grammar-languages";
 import { makeId } from "@/lib/ids";
 import { calculateNextReview } from "@/lib/spaced-repetition";
-import { saveReview, saveWordForms } from "@/lib/supabase/data";
+import { insertGrammarAttempt, saveClozeSentences, saveReview, saveWordForms } from "@/lib/supabase/data";
 import type { ReviewRating, WordRecord } from "@/lib/types";
-import { pickRecallPrompt, type RecallPrompt, type TypedAttempt } from "@/lib/typed-answer";
+import { buildCloze, pickRecallPrompt, type RecallPrompt, type TypedAttempt } from "@/lib/typed-answer";
 import { buildReviewQueue, defaultReviewFilters, filterReviewCards, type ReviewFilters } from "@/lib/word-filters";
 
 type ReviewSessionEntry = { logId: string; wordId: string; rating: ReviewRating };
@@ -98,6 +98,30 @@ export function ReviewProvider({ children }: { children: ReactNode }) {
             });
     }, [enrichmentTick, getCloudContext, setCards, upcomingMissingForms]);
 
+    // Words whose example sentence does not contain them get AI practice sentences for the fill-the-gap mode.
+    // Waits for the grammar forms first (they list the inflected spellings), runs one word at a time, once per page load.
+    const clozeTried = useRef(new Set<string>());
+    const clozeRunning = useRef(false);
+    const upcomingNeedingCloze = queue.slice(0, 3).find((card) => card.reps > 0 && card.meaning.trim() && !card.clozeSentences
+        && (card.forms || !hasGrammarForms(card.sourceLanguage)) && !clozeTried.current.has(card.id) && !buildCloze(card));
+    useEffect(() => {
+        const target = upcomingNeedingCloze;
+        if (!target || clozeRunning.current) return;
+        clozeRunning.current = true;
+        clozeTried.current.add(target.id);
+        void requestClozeSentences({ word: target.word, meaning: target.meaning, sourceLanguage: target.sourceLanguage, cefrLevel: target.cefrLevel, inflected: target.forms?.inflected })
+            .then(async (sentences) => {
+                setCards((previous) => previous.map((card) => card.id === target.id ? { ...card, clozeSentences: sentences } : card));
+                const cloud = getCloudContext();
+                if (cloud) await saveClozeSentences(cloud.client, cloud.userId, cloud.workspaceId, target.id, sentences);
+            })
+            .catch(() => undefined)
+            .finally(() => {
+                clozeRunning.current = false;
+                setEnrichmentTick((value) => value + 1);
+            });
+    }, [enrichmentTick, getCloudContext, setCards, upcomingNeedingCloze]);
+
     useEffect(() => {
         if (window.localStorage.getItem(reviewModeStorageKey) === "flip") setReviewModeState("flip");
     }, []);
@@ -112,7 +136,14 @@ export function ReviewProvider({ children }: { children: ReactNode }) {
     const submitTypedAttempt = useCallback((attempt: TypedAttempt) => {
         setTypedAttempt(attempt);
         setIsFlipped(true);
-    }, []);
+        // Logged for the weekly summary; the review itself never waits for or fails because of it.
+        const cloud = getCloudContext();
+        if (cloud && currentCard && attempt.mode) {
+            void insertGrammarAttempt(cloud.client, cloud.userId, cloud.workspaceId, {
+                wordId: currentCard.id, mode: attempt.mode, formKind: attempt.formKind, grade: attempt.grade, skipped: attempt.skipped,
+            }).catch(() => undefined);
+        }
+    }, [currentCard, getCloudContext]);
 
     const updateFilter = useCallback(<K extends keyof ReviewFilters>(key: K, value: ReviewFilters[K]) => {
         setFilters((previous) => ({ ...previous, [key]: value }));

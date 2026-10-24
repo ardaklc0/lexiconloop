@@ -29,9 +29,10 @@ export function TypedCard({ card, prompt }: { card: WordRecord; prompt: RecallPr
     function check(event: FormEvent) {
         event.preventDefault();
         if (checked || !value.trim()) return;
-        submitTypedAttempt(prompt.mode === "form"
+        const attempt = prompt.mode === "form"
             ? buildAttempt(value, prompt.expected)
-            : buildAttempt(value, answerVariants(card.word), prompt.mode === "cloze" ? [prompt.surface] : []));
+            : buildAttempt(value, answerVariants(card.word), prompt.mode === "cloze" ? [prompt.surface] : []);
+        submitTypedAttempt({ ...attempt, mode: prompt.mode, formKind: prompt.mode === "form" ? prompt.kind : undefined });
     }
 
     const correct = typedAttempt && !typedAttempt.skipped && typedAttempt.grade !== "wrong";
@@ -51,7 +52,7 @@ export function TypedCard({ card, prompt }: { card: WordRecord; prompt: RecallPr
                 ? <form className="typed-form" onSubmit={check}>
                     <input ref={inputRef} value={value} onChange={(event) => setValue(event.target.value)} placeholder={prompt.mode === "form" ? "Your answer..." : `Type in ${card.sourceLanguage}...`} lang={languageCodes[card.sourceLanguage]} autoCapitalize="off" autoComplete="off" autoCorrect="off" spellCheck={false} aria-label="Your answer" />
                     <div className="typed-form-actions">
-                        <button type="button" className="ghost-button" onClick={() => submitTypedAttempt(skippedAttempt())}><CircleHelp size={14} /> I don&apos;t know</button>
+                        <button type="button" className="ghost-button" onClick={() => submitTypedAttempt({ ...skippedAttempt(), mode: prompt.mode, formKind: prompt.mode === "form" ? prompt.kind : undefined })}><CircleHelp size={14} /> I don&apos;t know</button>
                         <button type="submit" className="primary-button" disabled={!value.trim()}><Check size={14} /> Check</button>
                     </div>
                 </form>
