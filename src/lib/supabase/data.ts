@@ -63,21 +63,32 @@ export async function deleteWorkspace(client: SupabaseClient, userId: string, wo
     if (error) throw new Error(error.message);
 }
 
+// The API returns at most 1000 rows per request (a Supabase default), so long tables are read page by page.
+// Every query needs a stable order, otherwise pages can overlap or skip rows.
+const PAGE_SIZE = 1000;
+type PageResponse = { data: unknown[] | null; error: { message: string } | null };
+
+export async function fetchAllRows<T>(readPage: (from: number, to: number) => PromiseLike<PageResponse>, options: { pageSize?: number; key?: (row: T) => string } = {}): Promise<T[]> {
+    const pageSize = options.pageSize ?? PAGE_SIZE;
+    const rows: T[] = [];
+    for (let from = 0; ; from += pageSize) {
+        const { data, error } = await readPage(from, from + pageSize - 1);
+        if (error) throw new Error(error.message);
+        rows.push(...((data ?? []) as T[]));
+        if ((data?.length ?? 0) < pageSize) break;
+    }
+    // A row added while the pages were being read can shift the next page; it must not be counted twice.
+    return options.key ? Array.from(new Map(rows.map((row) => [options.key!(row), row])).values()) : rows;
+}
+
 export async function loadUserData(client: SupabaseClient, userId: string, workspaceId: string) {
-    const [foldersResponse, wordsResponse, progressResponse, logsResponse] = await Promise.all([
-        client.from("folders").select("id, name, description, color").eq("user_id", userId).eq("workspace_id", workspaceId).order("created_at"),
-        client.from("words").select("id, folder_id, word, meaning, example_sentence, source_language, target_language, cefr_level, notes, forms, word_family, cloze_sentences, created_at").eq("user_id", userId).eq("workspace_id", workspaceId).order("created_at", { ascending: false }),
-        client.from("word_progress").select("word_id, state, stability, difficulty, due_at, last_review_at, reps, lapses").eq("user_id", userId).eq("workspace_id", workspaceId),
-        client.from("review_logs").select("id, word_id, rating, reviewed_at").eq("user_id", userId).eq("workspace_id", workspaceId).order("reviewed_at", { ascending: false }),
+    const wordColumns = "id, folder_id, word, meaning, example_sentence, source_language, target_language, cefr_level, notes, forms, word_family, cloze_sentences, created_at";
+    const [folderRows, wordRows, progressRows, logRows] = await Promise.all([
+        fetchAllRows<FolderRow>((from, to) => client.from("folders").select("id, name, description, color").eq("user_id", userId).eq("workspace_id", workspaceId).order("created_at").order("id").range(from, to)),
+        fetchAllRows<WordRow>((from, to) => client.from("words").select(wordColumns).eq("user_id", userId).eq("workspace_id", workspaceId).order("created_at", { ascending: false }).order("id").range(from, to), { key: (row) => row.id }),
+        fetchAllRows<ProgressRow>((from, to) => client.from("word_progress").select("word_id, state, stability, difficulty, due_at, last_review_at, reps, lapses").eq("user_id", userId).eq("workspace_id", workspaceId).order("word_id").range(from, to), { key: (row) => row.word_id }),
+        fetchAllRows<ReviewLogRow>((from, to) => client.from("review_logs").select("id, word_id, rating, reviewed_at").eq("user_id", userId).eq("workspace_id", workspaceId).order("reviewed_at", { ascending: false }).order("id").range(from, to), { key: (row) => row.id }),
     ]);
-
-    const error = foldersResponse.error ?? wordsResponse.error ?? progressResponse.error ?? logsResponse.error;
-    if (error) throw new Error(error.message);
-
-    const folderRows = (foldersResponse.data ?? []) as FolderRow[];
-    const wordRows = (wordsResponse.data ?? []) as WordRow[];
-    const progressRows = (progressResponse.data ?? []) as ProgressRow[];
-    const logRows = (logsResponse.data ?? []) as ReviewLogRow[];
     const progressByWord = new Map(progressRows.map((progress) => [progress.word_id, progress]));
 
     const folders: Folder[] = folderRows.map((folder) => ({
@@ -297,15 +308,15 @@ export type RecentGrammarAttempt = Omit<GrammarAttemptInput, "wordId"> & { wordI
 export type RecentSentenceAttempt = { wordId: string; isNatural: boolean | null; cefrEstimate: string | null; errors: Array<{ type: string; explanation: string }>; createdAt: string };
 
 export async function loadRecentAttempts(client: SupabaseClient, userId: string, workspaceId: string, sinceIso: string) {
+    type GrammarRow = { word_id: string; mode: GrammarAttemptInput["mode"]; form_kind: GrammarAttemptInput["formKind"] | null; grade: GrammarAttemptInput["grade"]; skipped: boolean; created_at: string; id: string };
+    type SentenceRow = { word_id: string; is_natural: boolean | null; cefr_estimate: string | null; errors: unknown; created_at: string; id: string };
     const [grammar, sentences] = await Promise.all([
-        client.from("grammar_attempts").select("word_id, mode, form_kind, grade, skipped, created_at").eq("user_id", userId).eq("workspace_id", workspaceId).gte("created_at", sinceIso),
-        client.from("sentence_attempts").select("word_id, is_natural, cefr_estimate, errors, created_at").eq("user_id", userId).eq("workspace_id", workspaceId).gte("created_at", sinceIso),
+        fetchAllRows<GrammarRow>((from, to) => client.from("grammar_attempts").select("id, word_id, mode, form_kind, grade, skipped, created_at").eq("user_id", userId).eq("workspace_id", workspaceId).gte("created_at", sinceIso).order("created_at").order("id").range(from, to), { key: (row) => row.id }),
+        fetchAllRows<SentenceRow>((from, to) => client.from("sentence_attempts").select("id, word_id, is_natural, cefr_estimate, errors, created_at").eq("user_id", userId).eq("workspace_id", workspaceId).gte("created_at", sinceIso).order("created_at").order("id").range(from, to), { key: (row) => row.id }),
     ]);
-    const error = grammar.error ?? sentences.error;
-    if (error) throw new Error(error.message);
     return {
-        grammar: (grammar.data ?? []).map((row): RecentGrammarAttempt => ({ wordId: row.word_id, mode: row.mode, formKind: row.form_kind ?? undefined, grade: row.grade, skipped: row.skipped, createdAt: row.created_at })),
-        sentences: (sentences.data ?? []).map((row): RecentSentenceAttempt => ({ wordId: row.word_id, isNatural: row.is_natural, cefrEstimate: row.cefr_estimate, errors: Array.isArray(row.errors) ? row.errors : [], createdAt: row.created_at })),
+        grammar: grammar.map((row): RecentGrammarAttempt => ({ wordId: row.word_id, mode: row.mode, formKind: row.form_kind ?? undefined, grade: row.grade, skipped: row.skipped, createdAt: row.created_at })),
+        sentences: sentences.map((row): RecentSentenceAttempt => ({ wordId: row.word_id, isNatural: row.is_natural, cefrEstimate: row.cefr_estimate, errors: Array.isArray(row.errors) ? row.errors as RecentSentenceAttempt["errors"] : [], createdAt: row.created_at })),
     };
 }
 
