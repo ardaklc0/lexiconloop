@@ -3484,12 +3484,40 @@ select.workspace-picker {
 }
 
 .review-coach-toggle {
-    justify-self: center;
-    margin-top: 10px;
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
+    margin: 0 0 12px;
+    border-style: dashed;
 }
 
 .review-coach {
-    margin-top: 14px;
-    padding-top: 14px;
-    border-top: 1px solid var(--line);
+    position: relative;
+    z-index: 1;
+    margin: 0 0 14px;
+    padding: 16px;
+    border: 1px solid rgba(255, 255, 255, .16);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, .05);
+}
+
+/* The review stage is dark in both themes, so the coach uses light-on-dark colors there. */
+.review-coach .sentence-coach label,
+.review-coach .sentence-corrected span,
+.review-coach .sentence-comment {
+    color: rgba(255, 255, 255, .62);
+}
+
+.review-coach .sentence-coach textarea {
+    background: rgba(255, 255, 255, .08);
+    border-color: rgba(255, 255, 255, .2);
+    color: #fff;
+}
+
+.review-coach .sentence-level {
+    border-color: rgba(255, 255, 255, .25);
 }
