@@ -31,6 +31,12 @@ const dropArticle = (value: string) => {
     return rest.length && articles.has(first) ? rest.join(" ") : value;
 };
 
+// "der Hund" -> "Hund", spelling and capitalization kept. A word without a leading article is returned as it is.
+export function withoutArticle(word: string) {
+    const [first, ...rest] = word.trim().split(/\s+/);
+    return rest.length && articles.has(first.toLowerCase()) ? rest.join(" ") : word.trim();
+}
+
 // "ae/oe/ue" and "a/o/u" spellings of the umlauts compare equal once both sides are folded.
 const fold = (value: string) => stripAccents(value).replace(/([aou])e/g, "$1");
 

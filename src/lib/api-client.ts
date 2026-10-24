@@ -1,11 +1,14 @@
-import type { CefrLevel, SentenceFeedback, Story, WordFamily, WordForms } from "@/lib/types";
+import type { CefrLevel, SentenceFeedback, Story, StoryFormat, WordFamily, WordForms } from "@/lib/types";
 import type { WeeklyStats, WeeklySummary } from "@/lib/weekly-stats";
 
 export type QuizQuestion = {
-    type: "multiple-choice" | "fill-blank";
+    type: "multiple-choice" | "fill-blank" | "typed";
     prompt: string;
     options?: string[];
     answer: string;
+    // Typed questions: every spelling that counts as right, besides the answer itself.
+    accepted?: string[];
+    hint?: string;
     explanation: string;
     word: string;
 };
@@ -70,6 +73,9 @@ type QuizCardInput = {
     word: string;
     meaning: string;
     exampleSentence?: string;
+    clozeSentences?: string[];
+    inflected?: string[];
+    partOfSpeech?: string;
     sourceLanguage: string;
     targetLanguage: string;
     cefrLevel?: CefrLevel;
@@ -129,7 +135,7 @@ export async function requestClozeSentences(input: { word: string; meaning?: str
     return data.sentences;
 }
 
-export async function requestStory(input: { sourceLanguage: string; feedbackLanguage: string; cefrLevel: CefrLevel; words: Array<{ word: string; meaning: string }> }) {
+export async function requestStory(input: { sourceLanguage: string; feedbackLanguage: string; cefrLevel: CefrLevel; format?: StoryFormat; topic?: string; words: Array<{ word: string; meaning: string }> }) {
     const { ok, data } = await postJson<Story>("/api/generate-story", input);
     if (!ok || !data.text) throw new Error(data.error ?? "Could not write a story.");
     return data;

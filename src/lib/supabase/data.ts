@@ -330,3 +330,27 @@ export async function saveWeeklySummary(client: SupabaseClient, userId: string, 
     const { error } = await client.from("weekly_summaries").upsert({ user_id: userId, workspace_id: workspaceId, week_start: weekStart, summary }, { onConflict: "workspace_id,week_start" });
     if (error) throw new Error(error.message);
 }
+
+// Recent sentences the learner wrote that the AI had to correct, used for "which sentence is correct?" quiz questions.
+export async function loadErroredSentences(client: SupabaseClient, userId: string, workspaceId: string, limit = 40) {
+    const { data, error } = await client
+        .from("sentence_attempts")
+        .select("word_id, sentence, corrected, errors")
+        .eq("user_id", userId)
+        .eq("workspace_id", workspaceId)
+        .order("created_at", { ascending: false })
+        .limit(limit);
+    if (error) throw new Error(error.message);
+    return (data ?? []).flatMap((row) => {
+        const errors = Array.isArray(row.errors) ? row.errors as Array<{ explanation?: string }> : [];
+        if (!row.corrected || row.corrected === row.sentence || !errors.length) return [];
+        return [{ wordId: row.word_id as string, sentence: row.sentence as string, corrected: row.corrected as string, explanation: errors[0]?.explanation ?? "" }];
+    });
+}
+
+// A missed quiz word comes back in the review queue today. Only words due later are moved, never the other way round.
+export async function pullWordsForward(client: SupabaseClient, userId: string, workspaceId: string, wordIds: string[], nowIso: string) {
+    if (!wordIds.length) return;
+    const { error } = await client.from("word_progress").update({ due_at: nowIso }).eq("user_id", userId).eq("workspace_id", workspaceId).in("word_id", wordIds).gt("due_at", nowIso);
+    if (error) throw new Error(error.message);
+}

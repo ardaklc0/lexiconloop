@@ -23,9 +23,16 @@ export type WordFamily = { family: FamilyItem[]; synonyms: FamilyItem[]; antonym
 
 export type StoryQuestion = { question: string; options: string[]; answer: string; explanation: string };
 
+export type StoryFormat = "story" | "dialogue" | "email" | "diary" | "news";
+
 export type Story = {
     title: string;
     text: string;
+    // The whole text in the learner's language, hidden until asked for.
+    translation?: string;
+    format?: StoryFormat;
+    topic?: string;
+    createdAt?: string;
     highlights: Array<{ surface: string; word: string; meaning: string }>;
     questions: StoryQuestion[];
     cefrLevel: CefrLevel;

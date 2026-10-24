@@ -2,7 +2,8 @@ import type { CefrLevel, ReviewLog, WordRecord } from "@/lib/types";
 
 const DAY = 24 * 60 * 60 * 1000;
 const minWords = 3;
-const maxWords = 8;
+// More words are offered than a story uses by default (the first eight are selected), so the learner can swap some.
+const maxWords = 12;
 
 export type StoryWordGroup = {
     sourceLanguage: string;
