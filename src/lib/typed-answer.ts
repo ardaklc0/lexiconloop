@@ -4,7 +4,7 @@ import type { ReviewRating, WordRecord } from "@/lib/types";
 export type ActiveRecallMode = "reverse" | "cloze" | "form";
 export type AnswerGrade = "exact" | "accent" | "close" | "wrong";
 export type FormKind = "article" | "plural" | "perfect" | "pastSimple" | "prefix";
-export type TypedAttempt = { answer: string; grade: AnswerGrade; suggested: ReviewRating; skipped: boolean; mode?: ActiveRecallMode; formKind?: FormKind };
+export type TypedAttempt = { answer: string; grade: AnswerGrade; suggested: ReviewRating; skipped: boolean; mode?: ActiveRecallMode; formKind?: FormKind; hints?: number };
 export type RecallPrompt =
     | { mode: "reverse" }
     | { mode: "cloze"; before: string; after: string; surface: string; isInflected: boolean }
@@ -35,6 +35,31 @@ const dropArticle = (value: string) => {
 export function withoutArticle(word: string) {
     const [first, ...rest] = word.trim().split(/\s+/);
     return rest.length && articles.has(first.toLowerCase()) ? rest.join(" ") : word.trim();
+}
+
+// The answer a hint is built from: the first of several accepted spellings ("a / b"), without bracketed notes.
+export function primaryAnswer(word: string) {
+    return word.split(/[/;|]/)[0].replace(/\([^)]*\)/g, " ").replace(/\s+/g, " ").trim() || word.trim();
+}
+
+export const MAX_HINT_LEVEL = 3;
+
+// Shows the shape of a word with some letters revealed: "H _ _ _ _" ("_ _ _ _ _" at level 0).
+// Level 1 shows the first letter, level 2 about 40% and level 3 about 70% of the letters of each word. Never all of them.
+export function maskWord(text: string, level: number) {
+    return text.split(/(\s+)/).map((part) => {
+        if (/^\s+$/.test(part)) return "   ";
+        const chars = Array.from(part);
+        const letters = chars.filter((char) => /\p{L}/u.test(char)).length;
+        const wanted = level <= 0 ? 0 : level === 1 ? 1 : Math.ceil(letters * (level === 2 ? 0.4 : 0.7));
+        const shown = Math.min(wanted, Math.max(letters - 1, 0));
+        let seen = 0;
+        return chars.map((char) => {
+            if (!/\p{L}/u.test(char)) return char;
+            seen += 1;
+            return seen <= shown ? char : "_";
+        }).join(" ");
+    }).join("");
 }
 
 // "ae/oe/ue" and "a/o/u" spellings of the umlauts compare equal once both sides are folded.

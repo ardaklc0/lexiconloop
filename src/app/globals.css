@@ -779,6 +779,7 @@ select.workspace-picker {
 }
 
 .flashcard {
+    display: grid;
     width: 100%;
     min-height: 290px;
     transform-style: preserve-3d;
@@ -797,10 +798,11 @@ select.workspace-picker {
     transform: rotateY(180deg);
 }
 
+/* Both faces sit in the same grid cell, so the card is as tall as its longer face and long sentences are never cut. */
 .card-face {
     backface-visibility: hidden;
-    position: absolute;
-    inset: 0;
+    position: relative;
+    grid-area: 1 / 1;
     border-radius: 12px;
     background: var(--surface);
     color: var(--ink);
@@ -808,8 +810,7 @@ select.workspace-picker {
     padding: 31px;
     display: flex;
     flex-direction: column;
-    min-height: 0;
-    overflow-y: auto;
+    min-height: 290px;
 }
 
 .card-back {
@@ -3888,4 +3889,40 @@ select.workspace-picker {
 .story-translated {
     font-size: 16px;
     color: var(--muted);
+}
+
+.typed-mask {
+    font-family: "DM Mono", monospace;
+    font-size: 20px;
+    letter-spacing: .08em;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    color: var(--sage);
+}
+
+.typed-context {
+    font-style: italic;
+}
+
+.typed-form-actions {
+    flex-wrap: wrap;
+}
+
+.card-hint {
+    padding-top: 12px;
+}
+
+.typed-form-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.typed-form-actions button {
+    justify-content: center;
+}
+
+/* With the hint button there are three actions: the two helpers share a row, Check gets its own. */
+.typed-form-actions.has-hint button[type="submit"] {
+    grid-column: 1 / -1;
 }

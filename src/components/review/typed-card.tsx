@@ -1,11 +1,15 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { Check, CircleHelp, Volume2, X } from "lucide-react";
+import { Check, CircleHelp, Lightbulb, Volume2, X } from "lucide-react";
 import { useReview } from "@/context/review-context";
 import { speakWord } from "@/lib/speech";
-import { answerVariants, buildAttempt, skippedAttempt, type AnswerGrade, type RecallPrompt } from "@/lib/typed-answer";
+import { answerVariants, buildAttempt, buildCloze, MAX_HINT_LEVEL, maskWord, primaryAnswer, skippedAttempt, withoutArticle, type AnswerGrade, type RecallPrompt } from "@/lib/typed-answer";
 import type { WordRecord } from "@/lib/types";
 
 const languageCodes: Record<string, string> = { German: "de", French: "fr", Spanish: "es", Italian: "it", English: "en", Turkish: "tr" };
+
+// A very long sentence is cut to the words around the gap, so the hint stays short.
+const shortenBefore = (text: string, max = 60) => text.length <= max ? text : `…${text.slice(text.length - max).replace(/^\S*\s/, "")}`;
+const shortenAfter = (text: string, max = 60) => text.length <= max ? text : `${text.slice(0, max).replace(/\s\S*$/, "")}…`;
 
 const verdicts: Record<AnswerGrade, string> = {
     exact: "Correct!",
@@ -17,11 +21,13 @@ const verdicts: Record<AnswerGrade, string> = {
 export function TypedCard({ card, prompt }: { card: WordRecord; prompt: RecallPrompt }) {
     const { typedAttempt, submitTypedAttempt } = useReview();
     const [value, setValue] = useState("");
+    const [hintLevel, setHintLevel] = useState(0);
     const inputRef = useRef<HTMLInputElement>(null);
     const checked = typedAttempt !== null;
 
     useEffect(() => {
         setValue("");
+        setHintLevel(0);
         // Focusing must not scroll the page: on phones the keyboard already moves the view.
         inputRef.current?.focus({ preventScroll: true });
     }, [card.id, card.reps]);
@@ -32,8 +38,18 @@ export function TypedCard({ card, prompt }: { card: WordRecord; prompt: RecallPr
         const attempt = prompt.mode === "form"
             ? buildAttempt(value, prompt.expected)
             : buildAttempt(value, answerVariants(card.word), prompt.mode === "cloze" ? [prompt.surface] : []);
-        submitTypedAttempt({ ...attempt, mode: prompt.mode, formKind: prompt.mode === "form" ? prompt.kind : undefined });
+        // Revealing several letters is real help, so a right answer then only suggests "Hard".
+        const suggested = hintLevel >= 2 && attempt.suggested === "good" ? "hard" : attempt.suggested;
+        submitTypedAttempt({ ...attempt, suggested, hints: hintLevel, mode: prompt.mode, formKind: prompt.mode === "form" ? prompt.kind : undefined });
     }
+
+    // Hints for "type the word" and "fill the gap": the shape of the answer is always shown, letters and context come with the hint button.
+    const hintTarget = prompt.mode === "cloze" ? prompt.surface : prompt.mode === "reverse" ? primaryAnswer(card.word) : "";
+    const bareTarget = prompt.mode === "reverse" ? withoutArticle(hintTarget) : hintTarget;
+    const article = prompt.mode === "reverse" && bareTarget !== hintTarget ? hintTarget.slice(0, hintTarget.length - bareTarget.length).trim() : "";
+    const mask = hintTarget ? `${hintLevel >= 1 && article ? `${article}  ` : ""}${maskWord(bareTarget, hintLevel)}` : "";
+    // Context shown from the first hint: the word's own sentence with a gap.
+    const contextCloze = prompt.mode === "reverse" && hintLevel >= 1 ? buildCloze(card) : null;
 
     const correct = typedAttempt && !typedAttempt.skipped && typedAttempt.grade !== "wrong";
     const tone = !typedAttempt ? "" : typedAttempt.grade === "wrong" ? "wrong" : typedAttempt.grade === "close" ? "close" : "right";
@@ -46,18 +62,21 @@ export function TypedCard({ card, prompt }: { card: WordRecord; prompt: RecallPr
             {prompt.mode === "cloze"
                 ? <div className="typed-prompt typed-cloze">{prompt.before}<span className={`cloze-gap ${tone}`}>{checked ? answerText : "       "}</span>{prompt.after}</div>
                 : <div className="typed-prompt">{prompt.mode === "form" ? card.word : card.meaning}</div>}
+            {!checked && mask && <div className="typed-mask" aria-label="Hint">{mask}</div>}
+            {!checked && contextCloze && <div className="typed-hint typed-context">“{shortenBefore(contextCloze.before)}_____{shortenAfter(contextCloze.after)}”</div>}
             {prompt.mode === "cloze" && <div className="typed-hint">{card.meaning}{prompt.isInflected ? ` · base form: ${card.word}` : ""}</div>}
             {prompt.mode === "form" && <div className="typed-hint typed-question">{prompt.question}<span>{card.meaning}</span></div>}
             {!checked
                 ? <form className="typed-form" onSubmit={check}>
                     <input ref={inputRef} value={value} onChange={(event) => setValue(event.target.value)} placeholder={prompt.mode === "form" ? "Your answer..." : `Type in ${card.sourceLanguage}...`} lang={languageCodes[card.sourceLanguage]} autoCapitalize="off" autoComplete="off" autoCorrect="off" spellCheck={false} aria-label="Your answer" />
-                    <div className="typed-form-actions">
-                        <button type="button" className="ghost-button" onClick={() => submitTypedAttempt({ ...skippedAttempt(), mode: prompt.mode, formKind: prompt.mode === "form" ? prompt.kind : undefined })}><CircleHelp size={14} /> I don&apos;t know</button>
+                    <div className={`typed-form-actions ${hintTarget ? "has-hint" : ""}`}>
+                        {hintTarget && <button type="button" className="ghost-button" onClick={() => setHintLevel((level) => Math.min(level + 1, MAX_HINT_LEVEL))} disabled={hintLevel >= MAX_HINT_LEVEL}><Lightbulb size={14} /> Hint {hintLevel}/{MAX_HINT_LEVEL}</button>}
+                        <button type="button" className="ghost-button" onClick={() => submitTypedAttempt({ ...skippedAttempt(), hints: hintLevel, mode: prompt.mode, formKind: prompt.mode === "form" ? prompt.kind : undefined })}><CircleHelp size={14} /> I don&apos;t know</button>
                         <button type="submit" className="primary-button" disabled={!value.trim()}><Check size={14} /> Check</button>
                     </div>
                 </form>
                 : <div className={`typed-result ${tone}`} role="status">
-                    <strong>{correct ? <Check size={15} /> : <X size={15} />} {typedAttempt.skipped ? "Revealed" : verdicts[typedAttempt.grade]}</strong>
+                    <strong>{correct ? <Check size={15} /> : <X size={15} />} {typedAttempt.skipped ? "Revealed" : verdicts[typedAttempt.grade]}{correct && (typedAttempt.hints ?? 0) >= 2 ? " (with hints)" : ""}</strong>
                     {!typedAttempt.skipped && typedAttempt.grade !== "exact" && <span className="typed-yours">You typed: {typedAttempt.answer}</span>}
                     <span className="typed-correct">{prompt.mode === "form" ? `${card.word} → ${prompt.answer}` : card.word}<button type="button" className="speaker-button" aria-label={`Pronounce ${card.word}`} onClick={() => speakWord(card.word, card.sourceLanguage)}><Volume2 size={16} /></button></span>
                     {prompt.mode === "reverse" && card.exampleSentence && <span className="typed-yours">{card.exampleSentence}</span>}
