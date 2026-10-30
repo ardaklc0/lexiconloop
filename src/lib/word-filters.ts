@@ -1,5 +1,5 @@
 import { sameId } from "@/lib/ids";
-import { isDue, sortReviewQueue } from "@/lib/spaced-repetition";
+import { compareQueueOrder, isDue, limitNewCards, sortReviewQueue } from "@/lib/spaced-repetition";
 import type { CardState, CefrLevel, Folder, WordRecord } from "@/lib/types";
 
 export type WordReviewStatus = "all" | "overdue" | "today" | "upcoming" | "unreviewed";
@@ -115,15 +115,13 @@ export const filterReviewCards = (cards: WordRecord[], filters: ReviewFilters) =
     return true;
 });
 
-export function buildReviewQueue(reviewCards: WordRecord[], dueMode: ReviewDueMode, sort: ReviewSort, now: Date) {
-    const candidates = dueMode === "due" ? reviewCards.filter((card) => isDue(card, now)) : reviewCards;
+// `newLimit` is how many new words may still start today. It only applies to the normal "due" queue,
+// not when the learner chooses to go through every card.
+export function buildReviewQueue(reviewCards: WordRecord[], dueMode: ReviewDueMode, sort: ReviewSort, now: Date, newLimit = Infinity) {
+    const candidates = dueMode === "due" ? limitNewCards(reviewCards.filter((card) => isDue(card, now)), newLimit).cards : reviewCards;
     if (sort === "random") return [...candidates].sort(() => Math.random() - 0.5);
     if (sort === "most-errors") return [...candidates].sort((first, second) => second.lapses - first.lapses || new Date(first.dueAt).getTime() - new Date(second.dueAt).getTime());
-    return dueMode === "due" ? sortReviewQueue(candidates, now) : [...candidates].sort((first, second) => {
-        if (first.state === "new" && second.state !== "new") return -1;
-        if (first.state !== "new" && second.state === "new") return 1;
-        return new Date(first.dueAt).getTime() - new Date(second.dueAt).getTime();
-    });
+    return dueMode === "due" ? sortReviewQueue(candidates, now) : [...candidates].sort(compareQueueOrder);
 }
 
 export const filterQuizCards = (cards: WordRecord[], filters: QuizFilters) => cards

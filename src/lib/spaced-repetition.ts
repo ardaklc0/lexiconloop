@@ -1,4 +1,4 @@
-import type { ReviewRating, ReviewResult, WordRecord } from "@/lib/types";
+import type { ReviewLog, ReviewRating, ReviewResult, WordRecord } from "@/lib/types";
 
 const MINUTE = 60 * 1000;
 const HOUR = 60 * MINUTE;
@@ -66,11 +66,32 @@ export const calculateNextReview = (
 export const isDue = (card: WordRecord, now = new Date()) =>
     card.state === "new" || new Date(card.dueAt).getTime() <= now.getTime();
 
+// Due reviews come first (oldest due first), new words after them (oldest added first): a review that is put off
+// is a word being forgotten, a new word that waits costs nothing.
+export const compareQueueOrder = (a: WordRecord, b: WordRecord) => {
+    const aNew = a.state === "new";
+    const bNew = b.state === "new";
+    if (aNew !== bNew) return aNew ? 1 : -1;
+    if (aNew) return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+    return new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime();
+};
+
 export const sortReviewQueue = (cards: WordRecord[], now = new Date()) =>
-    [...cards]
-        .filter((card) => isDue(card, now))
-        .sort((a, b) => {
-            if (a.state === "new" && b.state !== "new") return -1;
-            if (a.state !== "new" && b.state === "new") return 1;
-            return new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime();
-        });
+    [...cards].filter((card) => isDue(card, now)).sort(compareQueueOrder);
+
+// Keeps at most `limit` new words (the ones added first); the rest wait for another day.
+export function limitNewCards(cards: WordRecord[], limit: number) {
+    const fresh = cards.filter((card) => card.state === "new").sort(compareQueueOrder);
+    const allowed = new Set(fresh.slice(0, Math.max(0, limit)).map((card) => card.id));
+    return { cards: cards.filter((card) => card.state !== "new" || allowed.has(card.id)), waiting: fresh.length - allowed.size };
+}
+
+// How many words were started (reviewed while still new) on the given day. `dayOf` turns a timestamp into a day key
+// in the user's zone. The saved "previous state" is used rather than the first log, so cards without older logs count right.
+export function countWordsStartedOn(logs: ReviewLog[], dayOf: (iso: string) => string, day: string) {
+    const started = new Set<string>();
+    logs.forEach((log) => {
+        if (log.previousState === "new" && dayOf(log.reviewedAt) === day) started.add(log.wordId);
+    });
+    return started.size;
+}

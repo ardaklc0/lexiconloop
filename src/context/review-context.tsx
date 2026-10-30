@@ -1,12 +1,13 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { useAppData } from "@/context/app-data-context";
-import { useLatestPassedDueTime } from "@/hooks/use-clock";
+import { useLatestPassedDueTime, useToday } from "@/hooks/use-clock";
 import { requestClozeSentences, requestWordForms } from "@/lib/api-client";
 import { hasGrammarForms } from "@/lib/grammar-languages";
 import { makeId } from "@/lib/ids";
 import { calculateNextReview } from "@/lib/spaced-repetition";
 import { insertGrammarAttempt, saveClozeSentences, saveReview, saveWordForms } from "@/lib/supabase/data";
 import type { ReviewRating, WordRecord } from "@/lib/types";
+import { countWordsStartedOn, isDue, limitNewCards } from "@/lib/spaced-repetition";
 import { buildCloze, pickRecallPrompt, type RecallPrompt, type TypedAttempt } from "@/lib/typed-answer";
 import { buildReviewQueue, defaultReviewFilters, filterReviewCards, type ReviewFilters } from "@/lib/word-filters";
 
@@ -31,6 +32,9 @@ type Review = {
     recallPrompt: RecallPrompt | null;
     typedAttempt: TypedAttempt | null;
     submitTypedAttempt: (attempt: TypedAttempt) => void;
+    // Due new words held back by the daily limit, and a way to let a few more start today.
+    newWaiting: number;
+    learnMoreNew: (count?: number) => void;
     reviewCards: WordRecord[];
     queue: WordRecord[];
     currentCard: WordRecord | undefined;
@@ -46,7 +50,7 @@ export function useReview() {
 }
 
 export function ReviewProvider({ children }: { children: ReactNode }) {
-    const { cards, setCards, setLogs, setSyncStatus, getCloudContext, workspaceId } = useAppData();
+    const { cards, logs, newCardsPerDay, setCards, setLogs, setSyncStatus, getCloudContext, workspaceId } = useAppData();
     const [filters, setFilters] = useState<ReviewFilters>(defaultReviewFilters);
     const [isFlipped, setIsFlipped] = useState(false);
     const [reviewSession, setReviewSession] = useState<ReviewSession | null>(null);
@@ -58,9 +62,30 @@ export function ReviewProvider({ children }: { children: ReactNode }) {
     // Changes only when another card becomes due, not every second.
     const latestPassedDueTime = useLatestPassedDueTime(cards);
     const reviewCards = useMemo(() => filterReviewCards(cards, filters), [cards, filters]);
+    // The new-word limit counts words whose first review was today (local day) plus any extra allowed today.
+    const today = useToday();
+    const todayKey = new Date(today).toDateString();
+    const startedToday = useMemo(() => countWordsStartedOn(logs, (iso) => new Date(iso).toDateString(), todayKey), [logs, todayKey]);
+    const extraKey = `lexicon-loop-extra-new:${todayKey}`;
+    const [extraNew, setExtraNew] = useState(0);
+    useEffect(() => {
+        setExtraNew(Number(window.localStorage.getItem(extraKey)) || 0);
+    }, [extraKey]);
+    const allowedNew = newCardsPerDay === null ? Infinity : Math.max(0, newCardsPerDay + extraNew - startedToday);
+    const learnMoreNew = useCallback((count = 5) => {
+        setExtraNew((value) => {
+            const next = value + count;
+            window.localStorage.setItem(extraKey, String(next));
+            return next;
+        });
+    }, [extraKey]);
+    const newWaiting = useMemo(
+        () => filters.dueMode === "due" ? limitNewCards(reviewCards.filter((card) => isDue(card, new Date(latestPassedDueTime))), allowedNew).waiting : 0,
+        [allowedNew, filters.dueMode, latestPassedDueTime, reviewCards],
+    );
     const queue = useMemo(
-        () => buildReviewQueue(reviewCards, filters.dueMode, filters.sort, new Date(latestPassedDueTime)),
-        [filters.dueMode, filters.sort, latestPassedDueTime, reviewCards],
+        () => buildReviewQueue(reviewCards, filters.dueMode, filters.sort, new Date(latestPassedDueTime), allowedNew),
+        [allowedNew, filters.dueMode, filters.sort, latestPassedDueTime, reviewCards],
     );
     const currentCard = queue[0];
 
@@ -159,7 +184,7 @@ export function ReviewProvider({ children }: { children: ReactNode }) {
         if (!currentCard || !isFlipped) return;
         const reviewedAt = new Date();
         const next = calculateNextReview(currentCard, rating, reviewedAt);
-        const reviewLog = { id: makeId(), wordId: currentCard.id, rating, reviewedAt: reviewedAt.toISOString() };
+        const reviewLog = { id: makeId(), wordId: currentCard.id, rating, reviewedAt: reviewedAt.toISOString(), previousState: currentCard.state };
         setCards((previous) => previous.map((card) => card.id === currentCard.id ? { ...card, ...next } : card));
         setLogs((previous) => [...previous, reviewLog]);
         setReviewSession((session) => ({
@@ -188,9 +213,9 @@ export function ReviewProvider({ children }: { children: ReactNode }) {
 
     const value = useMemo<Review>(() => ({
         filters, updateFilter, clearFilters, isFlipped, setIsFlipped, reviewSession, setReviewSession, showReviewSummary, setShowReviewSummary,
-        reviewMode, setReviewMode, recallPrompt, typedAttempt, submitTypedAttempt,
+        reviewMode, setReviewMode, recallPrompt, typedAttempt, submitTypedAttempt, newWaiting, learnMoreNew,
         reviewCards, queue, currentCard, handleReview,
-    }), [clearFilters, currentCard, filters, handleReview, isFlipped, queue, recallPrompt, reviewCards, reviewMode, reviewSession, setReviewMode, showReviewSummary, submitTypedAttempt, typedAttempt, updateFilter]);
+    }), [clearFilters, currentCard, learnMoreNew, newWaiting, filters, handleReview, isFlipped, queue, recallPrompt, reviewCards, reviewMode, reviewSession, setReviewMode, showReviewSummary, submitTypedAttempt, typedAttempt, updateFilter]);
 
     return <ReviewContext.Provider value={value}>{children}</ReviewContext.Provider>;
 }

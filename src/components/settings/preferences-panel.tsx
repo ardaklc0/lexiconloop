@@ -3,9 +3,11 @@ import { Bell, CirclePlus, Keyboard, LogOut, ShieldCheck } from "lucide-react";
 import { useAppData } from "@/context/app-data-context";
 import { usePushReminders } from "@/hooks/use-push-reminders";
 
+const newCardLimitOptions = [5, 10, 15, 20, 30, 50];
+
 export function PreferencesPanel({ darkMode, onDarkModeChange }: { darkMode: boolean; onDarkModeChange: (darkMode: boolean) => void }) {
-    const { cloudMode, workspace, workspaces, switchWorkspace, addWorkspace, signOut, syncStatus, dailyGoal, dailyReminderEnabled, dailyReminderTime, reminderStatus, setReminderStatus } = useAppData();
-    const { toggleDailyReminder, updateDailyReminderTime, updateDailyGoal } = usePushReminders();
+    const { cloudMode, workspace, workspaces, switchWorkspace, addWorkspace, signOut, syncStatus, dailyGoal, newCardsPerDay, dailyReminderEnabled, dailyReminderTime, reminderStatus, setReminderStatus } = useAppData();
+    const { toggleDailyReminder, updateDailyReminderTime, updateDailyGoal, updateNewCardsPerDay } = usePushReminders();
     const [dailyGoalInput, setDailyGoalInput] = useState(String(dailyGoal));
 
     useEffect(() => {
@@ -17,6 +19,7 @@ export function PreferencesPanel({ darkMode, onDarkModeChange }: { darkMode: boo
         <div className="settings-list">
             <div className="setting-row"><div className="setting-copy"><strong>Workspace</strong><span>Switch your learning shelf.</span></div><div className="setting-control"><select value={workspace} onChange={(event) => void switchWorkspace(event.target.value)}>{(cloudMode ? workspaces.map((item) => item.name) : ["Arda's notebook", "Travel words", "Reading shelf"]).map((item) => <option key={item}>{item}</option>)}</select><button className="icon-button" onClick={() => void addWorkspace()} aria-label="Create workspace"><CirclePlus size={15} /></button></div></div>
             <div className="setting-row"><div className="setting-copy"><strong>Daily review goal</strong><span>Enter any whole number from 1 to 32767.</span></div><input className="daily-goal-input" type="number" min={1} max={32767} step={1} aria-label="Daily review goal" value={dailyGoalInput} onChange={(event) => setDailyGoalInput(event.currentTarget.value)} onBlur={() => { const goal = Number(dailyGoalInput); if (Number.isInteger(goal) && goal >= 1 && goal <= 32767) { setDailyGoalInput(String(goal)); void updateDailyGoal(goal); } else { setDailyGoalInput(String(dailyGoal)); setReminderStatus("Enter a whole-number goal from 1 to 32767."); } }} /></div>
+            <div className="setting-row"><div className="setting-copy"><strong>New words per day</strong><span>Reviews always come first. New words beyond this number wait for the next day.</span></div><div className="setting-control"><select value={newCardsPerDay === null ? "none" : String(newCardsPerDay)} onChange={(event) => void updateNewCardsPerDay(event.target.value === "none" ? null : Number(event.target.value))} aria-label="New words per day">{(newCardLimitOptions.includes(newCardsPerDay ?? -1) || newCardsPerDay === null ? newCardLimitOptions : [...newCardLimitOptions, newCardsPerDay].sort((first, second) => first - second)).map((value) => <option key={value} value={value}>{value}</option>)}<option value="none">No limit</option></select></div></div>
             <div className="setting-row"><div className="setting-copy"><strong>Daily push reminder</strong><span>Sent at this time if today&apos;s review goal is unfinished.</span></div><div className="setting-control"><input className="reminder-time-input" type="time" aria-label="Reminder time" value={dailyReminderTime} onChange={(event) => void updateDailyReminderTime(event.target.value)} /><button type="button" className="ghost-button" aria-pressed={dailyReminderEnabled} onClick={() => void toggleDailyReminder()}><Bell size={14} />{dailyReminderEnabled ? "Turn off" : "Enable"}</button></div></div>
             {reminderStatus && <p className="stats-note" role="status" aria-live="polite">{reminderStatus}</p>}
             <p className="stats-note">Push reminders can arrive while the app is closed. On iPhone or iPad, add Lexicon Loop to the Home Screen first.</p>

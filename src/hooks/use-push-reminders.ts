@@ -7,9 +7,9 @@ const decodeVapidPublicKey = (value: string) => {
 };
 
 export function usePushReminders() {
-    const { getSession, dailyGoal, setDailyGoal, dailyReminderEnabled, setDailyReminderEnabled, dailyReminderTime, setDailyReminderTime, setReminderStatus } = useAppData();
+    const { getSession, dailyGoal, setDailyGoal, newCardsPerDay, setNewCardsPerDay, dailyReminderEnabled, setDailyReminderEnabled, dailyReminderTime, setDailyReminderTime, setReminderStatus } = useAppData();
 
-    async function saveDailyReminderSettings(enabled: boolean, time: string, goal: number) {
+    async function saveDailyReminderSettings(enabled: boolean, time: string, goal: number, newPerDay: number | null = newCardsPerDay) {
         const session = getSession();
         if (!session) throw new Error("Sign in to save reminder settings.");
         const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
@@ -19,6 +19,7 @@ export function usePushReminders() {
             reminder_time: time,
             time_zone: timeZone,
             daily_goal: goal,
+            new_cards_per_day: newPerDay,
         }, { onConflict: "user_id" });
         if (error) throw new Error(error.message);
     }
@@ -107,5 +108,16 @@ export function usePushReminders() {
         }
     }
 
-    return { toggleDailyReminder, updateDailyReminderTime, updateDailyGoal };
+    async function updateNewCardsPerDay(value: number | null) {
+        const previous = newCardsPerDay;
+        setNewCardsPerDay(value);
+        try {
+            await saveDailyReminderSettings(dailyReminderEnabled, dailyReminderTime, dailyGoal, value);
+        } catch (error) {
+            setNewCardsPerDay(previous);
+            setReminderStatus(error instanceof Error ? error.message : "Could not save the new word limit.");
+        }
+    }
+
+    return { toggleDailyReminder, updateDailyReminderTime, updateDailyGoal, updateNewCardsPerDay };
 }

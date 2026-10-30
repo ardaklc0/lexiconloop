@@ -29,6 +29,9 @@ type AppData = {
     getSession: () => { client: SupabaseBrowserClient; userId: string } | null;
     dailyGoal: number;
     setDailyGoal: Dispatch<SetStateAction<number>>;
+    // New words that may start per day; null means no limit.
+    newCardsPerDay: number | null;
+    setNewCardsPerDay: Dispatch<SetStateAction<number | null>>;
     dailyReminderEnabled: boolean;
     setDailyReminderEnabled: Dispatch<SetStateAction<boolean>>;
     dailyReminderTime: string;
@@ -57,6 +60,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     const [workspaceId, setWorkspaceId] = useState("");
     const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
     const [dailyGoal, setDailyGoal] = useState(20);
+    const [newCardsPerDay, setNewCardsPerDay] = useState<number | null>(10);
     const [dailyReminderEnabled, setDailyReminderEnabled] = useState(false);
     const [dailyReminderTime, setDailyReminderTime] = useState("20:00");
     const [reminderStatus, setReminderStatus] = useState("");
@@ -103,7 +107,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
                 const remoteData = await loadUserData(supabase, user.id, firstWorkspace.id);
                 const { data: reminderSettings, error: reminderSettingsError } = await supabase
                     .from("daily_reminder_settings")
-                    .select("enabled, reminder_time, time_zone, daily_goal")
+                    .select("enabled, reminder_time, time_zone, daily_goal, new_cards_per_day")
                     .eq("user_id", user.id)
                     .maybeSingle();
                 if (!cancelled) {
@@ -116,6 +120,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
                         setDailyReminderEnabled(reminderSettings.enabled);
                         setDailyReminderTime(String(reminderSettings.reminder_time).slice(0, 5));
                         setDailyGoal(reminderSettings.daily_goal);
+                        setNewCardsPerDay(reminderSettings.new_cards_per_day ?? null);
                         window.localStorage.setItem("lexicon-loop-daily-goal", String(reminderSettings.daily_goal));
                     }
                     setInitialDataError("");
@@ -224,8 +229,8 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         isInitialDataLoading, initialDataError, cloudMode, syncStatus, setSyncStatus,
         workspace, workspaceId, workspaces, switchWorkspace, addWorkspace, removeCurrentWorkspace, signOut,
         getCloudContext, getSession,
-        dailyGoal, setDailyGoal, dailyReminderEnabled, setDailyReminderEnabled, dailyReminderTime, setDailyReminderTime, reminderStatus, setReminderStatus,
-    }), [addWorkspace, cards, cloudMode, dailyGoal, dailyReminderEnabled, dailyReminderTime, folders, getCloudContext, getSession, initialDataError, isInitialDataLoading, logs, reminderStatus, removeCurrentWorkspace, signOut, switchWorkspace, syncStatus, workspace, workspaceId, workspaces]);
+        dailyGoal, setDailyGoal, newCardsPerDay, setNewCardsPerDay, dailyReminderEnabled, setDailyReminderEnabled, dailyReminderTime, setDailyReminderTime, reminderStatus, setReminderStatus,
+    }), [addWorkspace, cards, cloudMode, dailyGoal, newCardsPerDay, dailyReminderEnabled, dailyReminderTime, folders, getCloudContext, getSession, initialDataError, isInitialDataLoading, logs, reminderStatus, removeCurrentWorkspace, signOut, switchWorkspace, syncStatus, workspace, workspaceId, workspaces]);
 
     return <AppDataContext.Provider value={value}>{children}</AppDataContext.Provider>;
 }

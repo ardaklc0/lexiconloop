@@ -40,12 +40,14 @@ export async function withKoboSession(request: Request, handler: (session: KoboS
     }
 }
 
-/** Daily goal and time zone saved by the website's Settings screen (defaults: 20 reviews, UTC). */
+/** Daily goal, new-word limit and time zone saved by the website's Settings screen (defaults: 20 reviews, 10 new words, UTC). */
 export async function loadPreferences(session: KoboSession) {
-    const { data, error } = await session.supabase.from("daily_reminder_settings").select("daily_goal, time_zone").eq("user_id", session.userId).maybeSingle();
+    const { data, error } = await session.supabase.from("daily_reminder_settings").select("daily_goal, time_zone, new_cards_per_day").eq("user_id", session.userId).maybeSingle();
     return {
         dailyGoal: !error && data?.daily_goal ? Number(data.daily_goal) : 20,
         timeZone: !error && data?.time_zone ? String(data.time_zone) : "UTC",
+        // null in the database means no limit.
+        newCardsPerDay: error || !data ? 10 : data.new_cards_per_day === null ? null : Number(data.new_cards_per_day),
     };
 }
 

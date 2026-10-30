@@ -1,7 +1,7 @@
-import { reviewDays } from "@/lib/kobo/days";
+import { dayKey, reviewDays } from "@/lib/kobo/days";
 import { html, koboPage, notice } from "@/lib/kobo/html";
 import { errorMessage, loadPreferences, redirectTo, withKoboSession, withMessage } from "@/lib/kobo/session";
-import { calculateNextReview, formatDueIn } from "@/lib/spaced-repetition";
+import { calculateNextReview, countWordsStartedOn, formatDueIn, isDue, limitNewCards } from "@/lib/spaced-repetition";
 import { loadUserData, saveReview } from "@/lib/supabase/data";
 import type { ReviewRating, WordRecord } from "@/lib/types";
 import { buildReviewQueue } from "@/lib/word-filters";
@@ -25,19 +25,25 @@ function cardBack(card: WordRecord, now: Date) {
 export async function GET(request: Request) {
     return withKoboSession(request, async (session) => {
         const params = new URL(request.url).searchParams;
-        const [{ cards, logs }, { dailyGoal, timeZone }] = await Promise.all([loadUserData(session.supabase, session.userId, session.workspace.id), loadPreferences(session)]);
+        const [{ cards, logs }, { dailyGoal, timeZone, newCardsPerDay }] = await Promise.all([loadUserData(session.supabase, session.userId, session.workspace.id), loadPreferences(session)]);
         const now = new Date();
-        const queue = buildReviewQueue(cards, "due", "oldest-due", now);
+        // Same daily new-word limit as the website, counted in the user's time zone.
+        const startedToday = countWordsStartedOn(logs, (iso) => dayKey(iso, timeZone), dayKey(now, timeZone));
+        const allowedNew = newCardsPerDay === null ? Infinity : Math.max(0, newCardsPerDay - startedToday);
+        const queue = buildReviewQueue(cards, "due", "oldest-due", now, allowedNew);
+        const newWaiting = limitNewCards(cards.filter((item) => isDue(item, now)), allowedNew).waiting;
         const card = queue[0];
         const { todayCount, streak } = reviewDays(logs, timeZone, now);
-        const progress = html`<p><strong>${queue.length} due</strong> · Today ${todayCount}/${dailyGoal}${todayCount >= dailyGoal ? " · Goal complete" : ""} · ${streak}-day streak</p>`;
+        const progress = html`<p><strong>${queue.length} due</strong>${newWaiting ? ` (${newWaiting} new waiting)` : ""} · Today ${todayCount}/${dailyGoal}${todayCount >= dailyGoal ? " · Goal complete" : ""} · ${streak}-day streak</p>`;
 
         let content;
         if (!cards.length) {
             content = html`<div class="card"><div class="word">Your vocabulary starts here.</div><p>Add your first word to start a review queue.</p></div><a class="button primary" href="/kobo/add">Add your first word</a>`;
         } else if (!card) {
-            const nextDue = Math.min(...cards.map((item) => new Date(item.dueAt).getTime()));
-            content = html`<div class="card"><div class="word">All clear for now.</div><p>Your next cards will appear here when they are due. Next card: ${formatDueIn(new Date(nextDue).toISOString(), now).toLowerCase()}.</p></div><a class="button" href="/kobo">Check again</a>`;
+            // New words held back by the daily limit are due already, so they do not count as the next card.
+            const started = cards.filter((item) => item.state !== "new");
+            const nextDue = started.length ? Math.min(...started.map((item) => new Date(item.dueAt).getTime())) : null;
+            content = html`<div class="card"><div class="word">All clear for now.</div><p>${newWaiting ? `Today's new words are done; ${newWaiting} more wait for the next days. ` : ""}${nextDue === null ? "" : `Next review: ${formatDueIn(new Date(nextDue).toISOString(), now).toLowerCase()}.`}</p></div><a class="button" href="/kobo">Check again</a>`;
         } else {
             content = params.get("reveal") === card.id ? cardBack(card, now) : cardFront(card);
         }

@@ -42,6 +42,7 @@ type ReviewLogRow = {
     word_id: string;
     rating: ReviewRating;
     reviewed_at: string;
+    previous_state: WordRecord["state"] | null;
 };
 
 export async function loadWorkspaces(client: SupabaseClient, userId: string) {
@@ -87,7 +88,7 @@ export async function loadUserData(client: SupabaseClient, userId: string, works
         fetchAllRows<FolderRow>((from, to) => client.from("folders").select("id, name, description, color").eq("user_id", userId).eq("workspace_id", workspaceId).order("created_at").order("id").range(from, to)),
         fetchAllRows<WordRow>((from, to) => client.from("words").select(wordColumns).eq("user_id", userId).eq("workspace_id", workspaceId).order("created_at", { ascending: false }).order("id").range(from, to), { key: (row) => row.id }),
         fetchAllRows<ProgressRow>((from, to) => client.from("word_progress").select("word_id, state, stability, difficulty, due_at, last_review_at, reps, lapses").eq("user_id", userId).eq("workspace_id", workspaceId).order("word_id").range(from, to), { key: (row) => row.word_id }),
-        fetchAllRows<ReviewLogRow>((from, to) => client.from("review_logs").select("id, word_id, rating, reviewed_at").eq("user_id", userId).eq("workspace_id", workspaceId).order("reviewed_at", { ascending: false }).order("id").range(from, to), { key: (row) => row.id }),
+        fetchAllRows<ReviewLogRow>((from, to) => client.from("review_logs").select("id, word_id, rating, reviewed_at, previous_state").eq("user_id", userId).eq("workspace_id", workspaceId).order("reviewed_at", { ascending: false }).order("id").range(from, to), { key: (row) => row.id }),
     ]);
     const progressByWord = new Map(progressRows.map((progress) => [progress.word_id, progress]));
 
@@ -129,6 +130,7 @@ export async function loadUserData(client: SupabaseClient, userId: string, works
         wordId: log.word_id,
         rating: log.rating,
         reviewedAt: log.reviewed_at,
+        previousState: log.previous_state ?? undefined,
     }));
 
     return { folders, cards, logs };

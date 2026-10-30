@@ -22,7 +22,7 @@ const filtersOpenState = screenState("review.filters-open", false);
 export function ReviewScreen() {
     const { cards, isInitialDataLoading, initialDataError } = useAppData();
     const { navigate, openAddWord } = useNavigation();
-    const { isFlipped, setIsFlipped, reviewMode, setReviewMode, recallPrompt, typedAttempt, reviewSession, showReviewSummary, setShowReviewSummary, reviewCards, queue, currentCard, handleReview } = useReview();
+    const { isFlipped, setIsFlipped, reviewMode, setReviewMode, recallPrompt, typedAttempt, newWaiting, learnMoreNew, reviewSession, showReviewSummary, setShowReviewSummary, reviewCards, queue, currentCard, handleReview } = useReview();
     const quiz = useQuiz();
     const [reviewFiltersOpen, setReviewFiltersOpen] = useScreenState(filtersOpenState);
     // Not kept between visits: leaving the review screen closes the quiz.
@@ -103,7 +103,7 @@ export function ReviewScreen() {
         <div className="dashboard-grid">
             <section className="review-stage" aria-label="Review session">
                 <div className="stage-head">
-                    <div className="stage-progress"><strong>{isInitialDataLoading ? "Loading vocabulary..." : initialDataError ? "Could not load vocabulary" : `${queue.length} cards due`}</strong>{!isInitialDataLoading && !initialDataError && <span>{reviewCards.length} in your library</span>}</div>
+                    <div className="stage-progress"><strong>{isInitialDataLoading ? "Loading vocabulary..." : initialDataError ? "Could not load vocabulary" : `${queue.length} cards due`}</strong>{!isInitialDataLoading && !initialDataError && <span>{reviewCards.length} in your library{newWaiting > 0 ? ` · ${newWaiting} new waiting` : ""}</span>}</div>
                     {!isInitialDataLoading && !initialDataError && !showReviewSummary && <DailyGoalProgress />}
                     <button className="ghost-button quiz-launch-button" onClick={() => setShowQuiz(true)} disabled={!quiz.quizCards.length}><ListChecks size={14} /> Quiz</button>
                     <button className="ghost-button quiz-launch-button" onClick={() => setShowStory(true)} disabled={!cards.length}><BookOpen size={14} /> Story</button>
@@ -119,7 +119,9 @@ export function ReviewScreen() {
                     {isFlipped && currentCard.reps >= 3 && <SentenceCoachToggle key={`coach-${currentCard.id}-${currentCard.reps}`} card={currentCard} />}
                     <div className="stage-actions review-rating-actions"><button className={`review-action forgot${typedAttempt?.suggested === "forgot" ? " suggested" : ""}`} disabled={!isFlipped} onClick={() => handleReview("forgot")}><ArrowLeft size={15} /> Forgot</button><button className={`review-action hard${typedAttempt?.suggested === "hard" ? " suggested" : ""}`} disabled={!isFlipped} onClick={() => handleReview("hard")}><Clock3 size={15} /> Hard</button><button className={`review-action good${typedAttempt?.suggested === "good" ? " suggested" : ""}`} disabled={!isFlipped} onClick={() => handleReview("good")}><Check size={15} /> Good</button><button className={`review-action easy${typedAttempt?.suggested === "easy" ? " suggested" : ""}`} disabled={!isFlipped} onClick={() => handleReview("easy")}><Sparkles size={15} /> Easy</button></div>
                     <div className="stage-footnote"><Keyboard size={12} style={{ verticalAlign: "-2px", marginRight: 4 }} /> {recallPrompt ? (isFlipped ? "Enter to accept the suggested rating · 1 Forgot · 2 Hard · 3 Good · 4 Easy" : "Enter to check your answer") : "Space to reveal · 1 Forgot · 2 Hard · 3 Good · 4 Easy"}</div>
-                </> : <div className="empty-stage"><div><Check size={34} /><h2>All clear for now.</h2><p>Your next cards will appear here when they are due. A quiet win.</p><button className="primary-button" style={{ marginTop: 22 }} onClick={() => navigate("words")}>Browse words <ArrowRight size={14} /></button></div></div>}
+                </> : <div className="empty-stage"><div><Check size={34} /><h2>All clear for now.</h2>{newWaiting > 0
+                    ? <><p>Today&apos;s reviews and new words are done. {newWaiting} more new {newWaiting === 1 ? "word is" : "words are"} waiting for the next days.</p><button className="primary-button" style={{ marginTop: 22 }} onClick={() => learnMoreNew(5)}>Learn {Math.min(5, newWaiting)} more today <ArrowRight size={14} /></button></>
+                    : <><p>Your next cards will appear here when they are due. A quiet win.</p><button className="primary-button" style={{ marginTop: 22 }} onClick={() => navigate("words")}>Browse words <ArrowRight size={14} /></button></>}</div></div>}
             </section>
         </div>
     );

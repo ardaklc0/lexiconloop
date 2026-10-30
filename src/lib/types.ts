@@ -89,6 +89,8 @@ export type ReviewLog = {
     wordId: string;
     rating: ReviewRating;
     reviewedAt: string;
+    // The card state before this review; "new" marks the day a word was started.
+    previousState?: CardState;
 };
 
 export type ReviewResult = Pick<WordRecord, "state" | "stability" | "difficulty" | "dueAt" | "lastReviewedAt" | "reps" | "lapses">;
